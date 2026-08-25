@@ -1,3 +1,3 @@
-[submodule "ros2_ws"]
-	path = ros2_ws
+[submodule "Autonomous_Systems"]
+	path = Autonomous_Systems
 	url = git@github.com:TecnicoFuelCell/Autonomous_Systems.git
