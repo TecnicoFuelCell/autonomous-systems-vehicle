@@ -16,8 +16,8 @@
 #include "geometry_msgs/msg/vector3.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "tf2_ros/transform_broadcaster.h"
-#include "wechat/msg/vesc_data.hpp"
-#include "wechat/msg/dir.hpp"
+#include "car_msgs/msg/vesc_data.hpp"
+#include "car_msgs/msg/dir.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -40,8 +40,8 @@ class OdomNode : public rclcpp::Node {
     OdomNode() : Node("odom_node") {
       using std::placeholders::_1;
 
-      vesc_sub_ = this->create_subscription<wechat::msg::VescData>( "/vesc_data", 10, std::bind(&OdomNode::vesc_callback, this, _1));
-      dir_sub_ = this->create_subscription<wechat::msg::Dir>( "/dir_data", 10, std::bind(&OdomNode::dir_callback, this, _1));
+      vesc_sub_ = this->create_subscription<car_msgs::msg::VescData>( "/vesc_data", 10, std::bind(&OdomNode::vesc_callback, this, _1));
+      dir_sub_ = this->create_subscription<car_msgs::msg::Dir>( "/dir_data", 10, std::bind(&OdomNode::dir_callback, this, _1));
       
       odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
       tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
@@ -70,12 +70,12 @@ class OdomNode : public rclcpp::Node {
     }
 
   private:
-    void dir_callback(const wechat::msg::Dir::SharedPtr msg) {
+    void dir_callback(const car_msgs::msg::Dir::SharedPtr msg) {
       steering_angle_ = msg->dir;
     }
 
 
-    void vesc_callback(const wechat::msg::VescData::SharedPtr msg) {
+    void vesc_callback(const car_msgs::msg::VescData::SharedPtr msg) {
       rclcpp::Time current_time(msg->header.stamp);
       if (current_time.nanoseconds() == 0) {
         current_time = this->get_clock()->now();
@@ -181,8 +181,8 @@ class OdomNode : public rclcpp::Node {
     }
 
     
-    rclcpp::Subscription<wechat::msg::VescData>::SharedPtr vesc_sub_;
-    rclcpp::Subscription<wechat::msg::Dir>::SharedPtr dir_sub_;
+    rclcpp::Subscription<car_msgs::msg::VescData>::SharedPtr vesc_sub_;
+    rclcpp::Subscription<car_msgs::msg::Dir>::SharedPtr dir_sub_;
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 

@@ -1,6 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/joy.hpp"
-#include "wechat/msg/im_speed.hpp"
+#include "car_msgs/msg/im_speed.hpp"
 
 class JoystickReader : public rclcpp::Node {
     /*
@@ -23,7 +23,7 @@ class JoystickReader : public rclcpp::Node {
             RCLCPP_INFO(this->get_logger(), "  joy_topic: %s", joy_topic_.c_str());
             RCLCPP_INFO(this->get_logger(), "  output_topic: %s", output_topic_.c_str());
 
-            publisher_ = this->create_publisher<wechat::msg::ImSpeed>(output_topic_, 10);
+            publisher_ = this->create_publisher<car_msgs::msg::ImSpeed>(output_topic_, 10);
             subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>(joy_topic_, 10, std::bind(&JoystickReader::joy_callback, this, std::placeholders::_1));
         }
 
@@ -42,7 +42,7 @@ class JoystickReader : public rclcpp::Node {
             int mapped_l2 = map_value(l2, 0.0, 1.0, 0, 255);
             int mapped_left_analog = map_value(left_analog, -1.0, 1.0, -200, 200);
 
-            auto im_speed_msg = wechat::msg::ImSpeed();
+            auto im_speed_msg = car_msgs::msg::ImSpeed();
             // Propagate the source /joy stamp so downstream timing stays
             // consistent in both bag replay and live operation.
             im_speed_msg.header.stamp = msg->header.stamp;
@@ -63,7 +63,7 @@ class JoystickReader : public rclcpp::Node {
         std::string joy_topic_;
         std::string output_topic_;
 
-        rclcpp::Publisher<wechat::msg::ImSpeed>::SharedPtr publisher_;
+        rclcpp::Publisher<car_msgs::msg::ImSpeed>::SharedPtr publisher_;
         rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscriber_;
     
 };
