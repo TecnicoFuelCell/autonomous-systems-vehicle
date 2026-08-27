@@ -1,0 +1,43 @@
+<!-- launch car with joystick-->
+
+<launch>
+    <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
+        <param name="dev" value="/dev/input/js0"/>
+        <param name="deadzone" value="0.05"/>
+        <param name="autorepeat_rate" value="20.0"/>
+    </node>
+    
+    <node pkg="joystick_pub" exec="joystick_node" name="joystick_reader" output="screen" > 
+        <param from="config/car_params.yaml"/>
+    </node>
+    
+    <node pkg="deadman_vesc_direction_imu_mag_pub" exec="deploy_joystick" output="screen" >
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- CAMERA -->
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
+         across runs (default is "use first GPS fix as origin" -> every
+         recording ends up in its own local frame and the prior map only lines
+         up by accident). Values match prior_map.json gps_ref. -->
+    <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
+        <param name="use_first_fix_as_origin" value="false"/>
+        <param name="origin_latitude"  value="38.7366804"/>
+        <param name="origin_longitude" value="-9.300988216666667"/>
+        <param name="origin_altitude"  value="0.0"/>
+    </node>
+    
+    <node pkg="odom_pub" exec="odom_node" name="odom_node" output="screen"/>
+
+
+    <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/>
+
+    <!-- <node pkg="commonsense" exec="replicate_msg" name="replicate_msg" output="screen" /> -->
+    <!-- <node pkg="commonsense" exec="zed_pose" name="zed_pose_publisher" output="screen"> -->
+        <!-- <param from="$(find-pkg-share commonsense)/config/zed_params.yaml"/> -->
+    <!-- </node> -->
+</launch>

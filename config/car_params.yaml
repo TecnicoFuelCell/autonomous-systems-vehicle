@@ -1,0 +1,168 @@
+# -- CALIBRATION -- #
+calibrate_aruco:
+  ros__parameters:
+    camera_extrinsics_path: 'config/camera_extrinsics.yaml'
+
+# -- SENSORS -- #
+manual_calibration_data_out:
+  ros__parameters:
+    intrinsics_topic: '/my/camera_info'
+    intrinsics_data: 'config/calibration_elgato_new_1280_720.npz' # calibration_elgato_new_1280_720.npz is the new camera
+    extrinsics_topic: '/my/camera_extrinsics'
+    extrinsics_data: 'config/camera_extrinsics.yaml'
+
+joystick_reader:
+  ros__parameters:
+    joy_topic: "/joy"
+    output_topic: "/joystick_movement"
+
+gps_publisher:
+  ros__parameters:
+    use_first_fix_as_origin: false
+    origin_latitude: 38.7366804
+    origin_longitude: -9.300988216666667
+    origin_altitude: 0.0
+    synthetic_mode: false
+
+# camera
+webcam_publisher:   # elgato_pub.py
+  ros__parameters:
+    device_path: "/dev/video0"
+    publish_rate: 30.0
+    topic_name: "/zed/left_camera/image_raw"
+    frame_width: 1280
+    frame_height: 720
+    camera_fps: 30.0
+    pixel_format: "MJPG"
+    configure_exposure: true
+    exposure_absolute: 3 # 50 for inside shell paddock
+    exposure_auto: 1
+    exposure_fail_fast: false
+
+joystick_actuator:
+  ros__parameters:
+    apply_mag_calib: true # TODO: CHANGE AFTER
+
+mag_compass:
+  ros__parameters:
+    #heading_offset_deg: 125.0 # IMU is +60 degrees regarding to car's orientation (offset was 185 previously); rest is to make sense
+    heading_offset_deg: 0.0 # IMU is +60 degrees regarding to car's orientation (offset was 185 previously); rest is to make sense
+
+
+# -- (2) ODOM, UNDISTORT IMAGE -- #
+odom_imu:
+  ros__parameters:
+    vesc_sub_topic: '/vesc_data'
+    imu_sub_topic: '/zed/imu/data'
+    odom_pub_topic: '/odom'
+
+odom:
+  ros__parameters:
+    vesc_sub_topic: '/vesc_data'
+    imu_sub_topic: '/zed/imu/data'
+    odom_pub_topic: '/odom'
+    rpm_ratio: 0.25
+    steering_gain : -1600.0
+    steering_offset: 0.0 # previously -3.0
+
+undistort_image: 
+  ros__parameters:
+    sub_info_topic: '/my/camera_info'
+    sub_image_topic: '/zed/left_camera/image_raw'
+    output_topic: '/zed/image_undistorted'
+    method: 'remap'
+    metrics_enabled: True
+    metrics_interval_sec: 2.0
+    skip_frames: 1
+
+# -- (3) PERCEPTION: YOLO + SAM + HOMOGRAPHY + SLAM -- #
+detection_model:
+  ros__parameters:
+    # topics
+    camera_int_topic: '/my/camera_info'
+    image_topic: '/zed/image_undistorted'
+    full_image_topic: '/masked_detection/full'
+    lane_mask_topic: '/masked_detection/lane_line_mask'
+    stop_sign_pos_topic: '/stop_sign_pos'
+    extrinsics_topic: '/my/camera_extrinsics'
+    # relevant/tunable params
+    debug: False
+    skip_frames: 0
+    imgsz: 640
+    confidence: 0.5
+    inference_device: 'cuda'
+    model_path: 'resources/model_weights/tfcdataset38_yolo26.pt' # NEW
+    #model_path: 'resources/model_weights/weights.pt' # OLD
+    #model_path: 'resources/model_weights/tfcdataset40_tagus.pt' # tagus only
+    #model_path: 'resources/model_weights/v14_tagus.pt'
+    #model_path: 'resources/model_weights/v41_tagus.pt'
+    # metrics stuff
+    metrics_enabled: True
+    metrics_interval_sec: 2.0
+    metrics_ema_alpha: 0.15
+
+fastSAM_N:
+  ros__parameters:
+    undistorted_input: '/zed/image_undistorted'
+    output_topic_mask: '/masked_image/segmentation'
+    output_topic_obs : '/masked_image/obstacles'
+    extrinsics_topic: '/my/camera_extrinsics'
+    camera_int_topic: '/my/camera_info'
+    # debug and efficiency flags add more logs and publish images
+    skip_frames: 0
+    use_fixed_camera_params: False
+    scale_ppm: 50
+    res640: True
+    fastsam_points: [280, 500, 360, 500, 150, 570, 450, 570]
+    ground_plane_width:  15.0
+    ground_plane_length: 30.0
+    max_obs_size: 0.55
+    min_obs_size: 0.35
+    lateral_range_fuck: 8
+    debug: False
+    efficiency: False
+    debug_logs: True
+
+lane_lines_homography:
+  ros__parameters:
+    # if you want to check homography, switch undistorted_input to /zed/image_undistorted and put debug: True, and check if things in BEV that are perpendicular to the car look parallel
+    extrinsics_topic: '/my/camera_extrinsics'
+    ground_plane_width:  15.0
+    ground_plane_length: 30.0
+    skip_frames: 0
+    stats_interval: 1.0
+    heartbeat_interval: 1.0
+    use_fixed_camera_params: False
+    camera_int_topic: '/my/camera_info'
+    scale_ppm: 50
+    undistorted_input: '/masked_detection/lane_line_mask' #'/zed/image_undistorted'
+    output_topic: '/ground_plane_view/lane_line_detection'
+    masks_ : True
+    mask_passthrough: True
+    stop_size : 0.54 # this should be DIAMETER
+    # tagus: 0.175
+    stop_sign_height: 0.54
+    use_fixed_camera_params: False
+    # debugging, benching
+    debug: False
+    save_debug_images: False
+    debug_image_dir: 'resources/run'
+    debug_image_every: 30
+    metrics_enabled: True
+    metrics_interval_sec: 2.0 # log FPS every 2s
+    metrics_ema_alpha: 0.15
+    benching: False
+    yolo_bench_dir: 'resources/benching/yolo_bench'
+    yolo_bench_flush_every: 10
+
+
+# Controlador MPC
+mpc:
+  ros__parameters:
+    use_sim_time: false
+    steering_gain : -1250.0
+    steering_offset: -3.0
+    wheelbase: 1.57667
+
+
+# -- DEBUG STUFF -- #
