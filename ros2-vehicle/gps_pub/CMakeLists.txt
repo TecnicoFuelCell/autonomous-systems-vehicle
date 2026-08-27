@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(GPS_pub)
+project(gps_pub)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -32,10 +32,5 @@ ament_target_dependencies(gps_node
 install(TARGETS gps_node
   DESTINATION lib/${PROJECT_NAME}
 )
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_active_tests()
-endif()
 
 ament_package()

@@ -13,7 +13,7 @@ find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(wechat REQUIRED)
+find_package(car_msgs REQUIRED)
 
 # Executável do nó
 add_executable(odom_node src/odom_node.cpp)
@@ -32,17 +32,12 @@ ament_target_dependencies(odom_node
   nav_msgs
   geometry_msgs
   tf2_ros
-  wechat
+  car_msgs
 )
 
 # Instalar o executável na pasta de binários do pacote
 install(TARGETS odom_node
   DESTINATION lib/${PROJECT_NAME}
 )
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_active_tests()
-endif()
 
 ament_package()

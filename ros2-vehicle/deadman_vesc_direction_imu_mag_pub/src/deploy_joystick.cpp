@@ -41,7 +41,7 @@ public:
 
         load_mag_calibration();
 
-        auto uart_fds = actuatinator_3000::uart_utils::discover_or_fallback(this->get_logger());
+        auto uart_fds = deadman_vesc_direction_imu_mag_pub::uart_utils::discover_or_fallback(this->get_logger());
         uart_fd_reader = uart_fds.reader_fd;
         uart_fd_writer = uart_fds.writer_fd;
         
@@ -66,7 +66,7 @@ public:
         // Subscriptions
         deadman_sub_ = this->create_subscription<std_msgs::msg::Bool>("/deadman/alive", 10,
             std::bind(&JoystickActuator::deadman_callback, this, std::placeholders::_1));
-        subscription_ = this->create_subscription<wechat::msg::ImSpeed>("/joystick_movement", 10, 
+        subscription_ = this->create_subscription<car_msgs::msg::ImSpeed>("/joystick_movement", 10, 
             std::bind(&JoystickActuator::listener_callback, this, std::placeholders::_1));
         
         // Start the deadman stale so the actuator stays disarmed until a real
@@ -78,8 +78,8 @@ public:
         if (!actuator_only_) {
             // Publishers
             alive_pub_ = this->create_publisher<std_msgs::msg::Bool>("/deadman/alive", 1);
-            vesc_dir_publisher_ = this->create_publisher<wechat::msg::VescData>("vesc_data", 1);
-            dir_publisher_ = this->create_publisher<wechat::msg::Dir>("dir_data", 1);
+            vesc_dir_publisher_ = this->create_publisher<car_msgs::msg::VescData>("vesc_data", 1);
+            dir_publisher_ = this->create_publisher<car_msgs::msg::Dir>("dir_data", 1);
             imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_data", 1);
             mag_publisher_ = this->create_publisher<sensor_msgs::msg::MagneticField>("mag_data", 1);
 
@@ -120,7 +120,7 @@ private:
         RCLCPP_DEBUG(this->get_logger(), "Deadman status updated: %s", car_on ? "ALIVE" : "DEAD");
     }
 
-    void listener_callback(const wechat::msg::ImSpeed::SharedPtr msg) {   
+    void listener_callback(const car_msgs::msg::ImSpeed::SharedPtr msg) {   
         int joystick_data = msg->move;
         std::string joystick_side = msg->which;
         int joystick_steering = msg->analog;
@@ -152,7 +152,7 @@ private:
      * @param1 data (string) - the raw line read from UART
     */
     void process_data(const std::string& data) {
-        std::string line = actuatinator_3000::uart_utils::trim(data);
+        std::string line = deadman_vesc_direction_imu_mag_pub::uart_utils::trim(data);
         if (line.empty()) return;
         
         RCLCPP_DEBUG(this->get_logger(), "UART Read raw line: %s", line.c_str());
@@ -194,7 +194,7 @@ private:
         }
 
         try {
-            auto msg = wechat::msg::VescData();
+            auto msg = car_msgs::msg::VescData();
             msg.header.stamp = safe_now(this);
             
             msg.tempmosfet = std::stof(parts[0]);
@@ -229,8 +229,8 @@ private:
 
     void process_dir(const std::string& data) {
         try {
-            int value = std::stoi(actuatinator_3000::uart_utils::trim(data));
-            auto msg = wechat::msg::Dir();
+            int value = std::stoi(deadman_vesc_direction_imu_mag_pub::uart_utils::trim(data));
+            auto msg = car_msgs::msg::Dir();
             msg.header.stamp = safe_now(this);
             msg.dir = value;
             
@@ -470,7 +470,7 @@ private:
         std::istringstream tokenStream(s);
         
         while (std::getline(tokenStream, token, delimiter)) {
-            tokens.push_back(actuatinator_3000::uart_utils::trim(token));
+            tokens.push_back(deadman_vesc_direction_imu_mag_pub::uart_utils::trim(token));
         }
         return tokens;
     }
@@ -552,13 +552,13 @@ private:
     std::chrono::steady_clock::time_point last_alive_time_;
     rclcpp::TimerBase::SharedPtr alive_timer_;
     rclcpp::TimerBase::SharedPtr timer_;
-    rclcpp::Publisher<wechat::msg::Dir>::SharedPtr dir_publisher_;
-    rclcpp::Publisher<wechat::msg::VescData>::SharedPtr vesc_dir_publisher_;
+    rclcpp::Publisher<car_msgs::msg::Dir>::SharedPtr dir_publisher_;
+    rclcpp::Publisher<car_msgs::msg::VescData>::SharedPtr vesc_dir_publisher_;
     
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr mag_publisher_;
     
-    rclcpp::Subscription<wechat::msg::ImSpeed>::SharedPtr subscription_;
+    rclcpp::Subscription<car_msgs::msg::ImSpeed>::SharedPtr subscription_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr alive_pub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr deadman_sub_;
 };

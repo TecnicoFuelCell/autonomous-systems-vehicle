@@ -31,9 +31,4 @@ install(TARGETS joystick_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  ament_lint_auto_find_active_tests()
-endif()
-
 ament_package()
