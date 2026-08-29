@@ -20,7 +20,11 @@ include_directories(include)
 # Executável do nó a partir do deploy_joystick.cpp
 add_executable(deploy_joystick 
   src/deploy_joystick.cpp
-  # Adiciona src/uart_utils.cpp se tiveres a implementação num ficheiro separado
+  src/deadman_alive.cpp
+  src/vesc_parser.cpp
+  src/dir_parser.cpp
+  src/imu_parser.cpp
+  src/mag_parser.cpp
 )
 
 # Lincar dependências
