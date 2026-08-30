@@ -15,7 +15,10 @@ namespace deadman_actuator {
 DeadmanActuatorNode::DeadmanActuatorNode()
 : Node("deadman_actuator"), uart_fd_(-1)
 {
-    uart_fd_ = uart_utils::discover_or_fallback(this->get_logger());
+    std::string serial_port =
+        this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
+
+    uart_fd_ = uart_utils::discover_or_fallback(this->get_logger(), serial_port);
     if (uart_fd_ < 0) {
         RCLCPP_ERROR(this->get_logger(), "Failed to open UART device for deadman/serial IO.");
         rclcpp::shutdown();
@@ -32,6 +35,13 @@ DeadmanActuatorNode::DeadmanActuatorNode()
     last_alive_time_ = std::chrono::steady_clock::now() - std::chrono::seconds(10);
 
     alive_pub_ = this->create_publisher<std_msgs::msg::Bool>("/deadman/alive", 1);
+
+    // Raw line passthrough topics consumed by the per-sensor decode nodes.
+    vesc_pub_ = this->create_publisher<std_msgs::msg::String>("/serial/vesc", 10);
+    dir_pub_ = this->create_publisher<std_msgs::msg::String>("/serial/dir", 10);
+    acc_pub_ = this->create_publisher<std_msgs::msg::String>("/serial/acc", 10);
+    gyro_pub_ = this->create_publisher<std_msgs::msg::String>("/serial/gyro", 10);
+    mag_pub_ = this->create_publisher<std_msgs::msg::String>("/serial/mag", 10);
 
     read_timer_ = this->create_wall_timer(5ms, std::bind(&DeadmanActuatorNode::read_uart, this));
     // Deadman watchdog only ever DISARMS; arming is done solely by a real
@@ -98,23 +108,49 @@ void DeadmanActuatorNode::process_alive() {
 void DeadmanActuatorNode::read_uart() {
     if (uart_fd_ < 0) return;
 
-    static std::string line_buffer;
-    char c;
-    while (read(uart_fd_, &c, 1) == 1) {
-        if (c == '\n') {
-            std::string line = uart_utils::trim(line_buffer);
-            if (line.find("ALIVE") == 0) {
-                last_alive_time_ = std::chrono::steady_clock::now();
-                car_on_ = true;
-                auto m = std_msgs::msg::Bool();
-                m.data = true;
-                alive_pub_->publish(m);
-                RCLCPP_DEBUG(this->get_logger(), "Received ALIVE signal");
-            }
-            line_buffer.clear();
-        } else {
-            line_buffer += c;
+    char buf[256];
+    ssize_t n;
+    while ((n = read(uart_fd_, buf, sizeof(buf))) > 0) {
+        line_buffer_.append(buf, buf + n);
+        size_t pos;
+        while ((pos = line_buffer_.find('\n')) != std::string::npos) {
+            std::string line = line_buffer_.substr(0, pos);
+            line_buffer_.erase(0, pos + 1);
+            handle_line(line);
         }
+    }
+}
+
+void DeadmanActuatorNode::handle_line(const std::string& line) {
+    std::string trimmed = uart_utils::trim(line);
+    if (trimmed.empty()) return;
+
+    std_msgs::msg::String msg;
+    if (trimmed.find("ALIVE") == 0) {
+        last_alive_time_ = std::chrono::steady_clock::now();
+        car_on_ = true;
+        auto m = std_msgs::msg::Bool();
+        m.data = true;
+        alive_pub_->publish(m);
+        RCLCPP_DEBUG(this->get_logger(), "Received ALIVE signal");
+        return;
+    } else if (trimmed.find("VESC:") == 0) {
+        msg.data = trimmed.substr(5);
+        vesc_pub_->publish(msg);
+    } else if (trimmed.find("Dir:") == 0) {
+        msg.data = trimmed.substr(4);
+        dir_pub_->publish(msg);
+    } else if (trimmed.find("ACC:") == 0) {
+        msg.data = trimmed.substr(4);
+        acc_pub_->publish(msg);
+    } else if (trimmed.find("GYRO:") == 0) {
+        msg.data = trimmed.substr(5);
+        gyro_pub_->publish(msg);
+    } else if (trimmed.find("MAG:") == 0) {
+        msg.data = trimmed.substr(4);
+        mag_pub_->publish(msg);
+    } else {
+        RCLCPP_DEBUG(this->get_logger(), "Unknown serial line dropped: %s", trimmed.c_str());
     }
 }
 

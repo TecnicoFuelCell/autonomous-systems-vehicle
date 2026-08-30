@@ -5,6 +5,7 @@
 
 #include <car_msgs/msg/im_speed.hpp>
 #include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <chrono>
 #include <string>
@@ -22,9 +23,12 @@ private:
     void listener_callback(const car_msgs::msg::ImSpeed::SharedPtr msg);
     void process_alive();
     void read_uart();
+    void handle_line(const std::string& line);
     void write_serial(const std::string& message);
 
     int uart_fd_{-1};
+
+    std::string line_buffer_;
 
     bool car_on_{false};
 
@@ -33,6 +37,11 @@ private:
     rclcpp::TimerBase::SharedPtr alive_timer_;
     rclcpp::TimerBase::SharedPtr read_timer_;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr alive_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr vesc_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr dir_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr acc_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr gyro_pub_;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mag_pub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr deadman_sub_;
     rclcpp::Subscription<car_msgs::msg::ImSpeed>::SharedPtr subscription_;
 };
