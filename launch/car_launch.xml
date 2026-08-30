@@ -11,7 +11,19 @@
         <param from="config/car_params.yaml"/>
     </node>
     
-    <node pkg="deadman_vesc_direction_imu_mag_pub" exec="deploy_joystick" output="screen" >
+    <!-- Single UART reader + deadman watchdog. Owns the serial device and
+         republishes each sensor line on /serial/* for the decode nodes below. -->
+    <node pkg="deadman_actuator" exec="deadman_actuator" name="deadman_actuator" output="screen">
+        <param from="config/car_params.yaml"/>
+        <param name="serial_port" value="/dev/ttyUSB0"/>
+    </node>
+
+    <!-- Sensor decode nodes: subscribe to raw /serial/* lines from deadman_actuator
+         and publish the typed topics (names unchanged for downstream consumers). -->
+    <node pkg="vesc_pub" exec="vesc_node" name="vesc_node" output="screen"/>
+    <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen"/>
+    <node pkg="imu_pub"  exec="imu_node"  name="imu_node"  output="screen"/>
+    <node pkg="mag_pub"  exec="mag_node"  name="mag_node"  output="screen">
         <param from="config/car_params.yaml"/>
     </node>
 
