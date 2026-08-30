@@ -1,17 +1,19 @@
 #include "imu_pub/imu_node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <string>
 #include <vector>
 #include <functional>
 #include <exception>
-
-#include "imu_pub/uart_utils.hpp"
+#include <sstream>
 
 using namespace std::chrono_literals;
 
 namespace imu_pub {
 
+namespace {
 rclcpp::Time safe_now(rclcpp::Node* n) {
     rclcpp::Time t = n->get_clock()->now();
     if (t.nanoseconds() != 0) return t;
@@ -19,27 +21,43 @@ rclcpp::Time safe_now(rclcpp::Node* n) {
     return wall_clock.now();
 }
 
+std::string trim(const std::string& str) {
+    std::string s = str;
+    s.erase(s.begin(), std::find_if_not(s.begin(), s.end(),
+        [](unsigned char ch) { return std::isspace(ch); }));
+    s.erase(std::find_if_not(s.rbegin(), s.rend(),
+        [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
+    return s;
+}
+
+std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::istringstream stream(s);
+    std::string token;
+    while (std::getline(stream, token, delimiter)) {
+        tokens.push_back(trim(token));
+    }
+    return tokens;
+}
+} // namespace
+
 ImuNode::ImuNode()
-: Node("imu_node"), uart_fd_(-1)
+: Node("imu_node")
 {
     std::string imu_topic = this->declare_parameter<std::string>("imu_topic", "/imu_data");
     std::string frame_id = this->declare_parameter<std::string>("frame_id", "imu_link");
 
-    uart_fd_ = uart_utils::discover_or_fallback(this->get_logger());
-    if (uart_fd_ < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open UART device for reading IMU data.");
-        rclcpp::shutdown();
-        return;
-    }
-
     current_imu_msg_.header.frame_id = frame_id;
 
     publisher_ = this->create_publisher<sensor_msgs::msg::Imu>(imu_topic, 1);
-    timer_ = this->create_wall_timer(5ms, std::bind(&ImuNode::read_uart, this));
+    acc_sub_ = this->create_subscription<std_msgs::msg::String>("/serial/acc", 10,
+        std::bind(&ImuNode::process_acc, this, std::placeholders::_1));
+    gyro_sub_ = this->create_subscription<std_msgs::msg::String>("/serial/gyro", 10,
+        std::bind(&ImuNode::process_gyro, this, std::placeholders::_1));
 }
 
-void ImuNode::process_acc(const std::string& data) {
-    std::vector<std::string> parts = uart_utils::split(data, ',');
+void ImuNode::process_acc(const std_msgs::msg::String::ConstSharedPtr msg) {
+    std::vector<std::string> parts = split(msg->data, ',');
     if (parts.size() >= 3) {
         try {
             current_imu_msg_.linear_acceleration.x = std::stof(parts[1]) * 0.00980665f;
@@ -67,15 +85,15 @@ void ImuNode::process_acc(const std::string& data) {
                          current_imu_msg_.linear_acceleration.y,
                          current_imu_msg_.linear_acceleration.z);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "ACC parse exception: %s. Payload: %s", e.what(), data.c_str());
+            RCLCPP_ERROR(this->get_logger(), "ACC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
         RCLCPP_ERROR(this->get_logger(), "ACC parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
-void ImuNode::process_gyro(const std::string& data) {
-    std::vector<std::string> parts = uart_utils::split(data, ',');
+void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
+    std::vector<std::string> parts = split(msg->data, ',');
     if (parts.size() >= 3) {
         try {
             constexpr float DEG_TO_RAD = 0.01745329251f;
@@ -109,30 +127,10 @@ void ImuNode::process_gyro(const std::string& data) {
 
             publisher_->publish(current_imu_msg_);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "GYRO parse exception: %s. Payload: %s", e.what(), data.c_str());
+            RCLCPP_ERROR(this->get_logger(), "GYRO parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
         RCLCPP_ERROR(this->get_logger(), "GYRO parse error: Insufficient data pieces (%zu)", parts.size());
-    }
-}
-
-void ImuNode::read_uart() {
-    if (uart_fd_ < 0) return;
-
-    static std::string line_buffer;
-    char c;
-    while (read(uart_fd_, &c, 1) == 1) {
-        if (c == '\n') {
-            std::string line = uart_utils::trim(line_buffer);
-            if (line.find("ACC:") == 0) {
-                process_acc(line.substr(4));
-            } else if (line.find("GYRO:") == 0) {
-                process_gyro(line.substr(5));
-            }
-            line_buffer.clear();
-        } else {
-            line_buffer += c;
-        }
     }
 }
 
