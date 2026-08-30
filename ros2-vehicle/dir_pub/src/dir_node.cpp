@@ -1,15 +1,16 @@
 #include "dir_pub/dir_node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 #include <functional>
 #include <exception>
-
-#include "dir_pub/uart_utils.hpp"
 
 using namespace std::chrono_literals;
 
 namespace dir_pub {
 
+namespace {
 rclcpp::Time safe_now(rclcpp::Node* n) {
     rclcpp::Time t = n->get_clock()->now();
     if (t.nanoseconds() != 0) return t;
@@ -17,48 +18,37 @@ rclcpp::Time safe_now(rclcpp::Node* n) {
     return wall_clock.now();
 }
 
+std::string trim(const std::string& str) {
+    std::string s = str;
+    s.erase(s.begin(), std::find_if_not(s.begin(), s.end(),
+        [](unsigned char ch) { return std::isspace(ch); }));
+    s.erase(std::find_if_not(s.rbegin(), s.rend(),
+        [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
+    return s;
+}
+} // namespace
+
 DirNode::DirNode()
-: Node("dir_node"), uart_fd_(-1)
+: Node("dir_node")
 {
     std::string dir_topic = this->declare_parameter<std::string>("dir_topic", "/dir_data");
-    std::string frame_id = this->declare_parameter<std::string>("frame_id", "");
-
-    uart_fd_ = uart_utils::discover_or_fallback(this->get_logger());
-    if (uart_fd_ < 0) {
-        RCLCPP_ERROR(this->get_logger(), "Failed to open UART device for reading Dir data.");
-        rclcpp::shutdown();
-        return;
-    }
 
     publisher_ = this->create_publisher<car_msgs::msg::Dir>(dir_topic, 1);
-    timer_ = this->create_wall_timer(5ms, std::bind(&DirNode::read_uart, this));
+    subscription_ = this->create_subscription<std_msgs::msg::String>("/serial/dir", 10,
+        std::bind(&DirNode::process, this, std::placeholders::_1));
 }
 
-void DirNode::read_uart() {
-    if (uart_fd_ < 0) return;
+void DirNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
+    try {
+        int value = std::stoi(trim(msg->data));
+        auto out = car_msgs::msg::Dir();
+        out.header.stamp = safe_now(this);
+        out.dir = value;
 
-    static std::string line_buffer;
-    char c;
-    while (read(uart_fd_, &c, 1) == 1) {
-        if (c == '\n') {
-            std::string line = uart_utils::trim(line_buffer);
-            if (line.find("Dir:") == 0) {
-                try {
-                    int value = std::stoi(uart_utils::trim(line.substr(4)));
-                    auto msg = car_msgs::msg::Dir();
-                    msg.header.stamp = safe_now(this);
-                    msg.dir = value;
-
-                    RCLCPP_DEBUG(this->get_logger(), "Parsed Dir: %d", value);
-                    publisher_->publish(msg);
-                } catch (const std::exception& e) {
-                    RCLCPP_ERROR(this->get_logger(), "Dir parse exception: %s. Payload: %s", e.what(), line.c_str());
-                }
-            }
-            line_buffer.clear();
-        } else {
-            line_buffer += c;
-        }
+        RCLCPP_DEBUG(this->get_logger(), "Parsed Dir: %d", value);
+        publisher_->publish(out);
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Dir parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
     }
 }
 

@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <car_msgs/msg/dir.hpp>
+#include <std_msgs/msg/string.hpp>
 
 namespace dir_pub {
 
@@ -12,12 +13,10 @@ public:
     DirNode();
 
 private:
-    void read_uart();
-
-    int uart_fd_{-1};
+    void process(const std_msgs::msg::String::ConstSharedPtr msg);
 
     rclcpp::Publisher<car_msgs::msg::Dir>::SharedPtr publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
 };
 
 } // namespace dir_pub
