@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/magnetic_field.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <array>
 #include <string>
@@ -18,11 +19,10 @@ public:
 
 private:
     void load_mag_calibration();
-    void read_uart();
-
-    int uart_fd_{-1};
+    void process(const std_msgs::msg::String::ConstSharedPtr msg);
 
     bool apply_mag_calib_{true};
+    std::string frame_id_;
     std::array<double, 3> mag_offset_{{0.0, 0.0, 0.0}};
     std::array<std::array<double, 3>, 3> mag_matrix_{{
         {{1.0, 0.0, 0.0}},
@@ -31,7 +31,7 @@ private:
     }};
 
     rclcpp::Publisher<sensor_msgs::msg::MagneticField>::SharedPtr publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
 };
 
 } // namespace mag_pub
