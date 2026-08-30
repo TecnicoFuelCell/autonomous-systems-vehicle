@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <car_msgs/msg/vesc_data.hpp>
+#include <std_msgs/msg/string.hpp>
 
 #include <string>
 
@@ -14,13 +15,10 @@ public:
     VesceNode();
 
 private:
-    void process(const std::string& data);
-    void read_uart();
-
-    int uart_fd_{-1};
+    void process(const std_msgs::msg::String::ConstSharedPtr msg);
 
     rclcpp::Publisher<car_msgs::msg::VescData>::SharedPtr publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription_;
 };
 
 } // namespace vesc_pub
