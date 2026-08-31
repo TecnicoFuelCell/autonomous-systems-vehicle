@@ -15,7 +15,7 @@
          republishes each sensor line on /serial/* for the decode nodes below. -->
     <node pkg="deadman_actuator" exec="deadman_actuator" name="deadman_actuator" output="screen">
         <param from="config/car_params.yaml"/>
-        <param name="serial_port" value="/dev/ttyUSB0"/>
+        <param name="serial_port" value="/dev/ttyACM0"/>
     </node>
 
     <!-- Sensor decode nodes: subscribe to raw /serial/* lines from deadman_actuator
@@ -28,9 +28,9 @@
     </node>
 
     <!-- CAMERA -->
-    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+    <!-- <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
         <param from="config/car_params.yaml"/>
-    </node>
+    </node> -->
 
     <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
          across runs (default is "use first GPS fix as origin" -> every
@@ -46,7 +46,7 @@
     <node pkg="odom_pub" exec="odom_node" name="odom_node" output="screen"/>
 
 
-    <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/>
+    <!-- <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/> -->
 
     <!-- <node pkg="commonsense" exec="replicate_msg" name="replicate_msg" output="screen" /> -->
     <!-- <node pkg="commonsense" exec="zed_pose" name="zed_pose_publisher" output="screen"> -->
