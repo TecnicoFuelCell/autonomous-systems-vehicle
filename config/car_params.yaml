@@ -39,7 +39,7 @@ webcam_publisher:   # elgato_pub.py
     exposure_auto: 1
     exposure_fail_fast: false
 
-joystick_actuator:
+mag_node:
   ros__parameters:
     apply_mag_calib: true # TODO: CHANGE AFTER
 
