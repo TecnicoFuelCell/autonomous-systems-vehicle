@@ -1,22 +1,22 @@
 #include <rclcpp/rclcpp.hpp>
 // https://docs.ros2.org/foxy/api/sensor_msgs/msg/NavSatFix.html
-#include <sensor_msgs/msg/nav_sat_fix.hpp> 
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/nav_sat_status.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <nmea_msgs/msg/sentence.hpp>
 
+#include <gps_pub/nmea.hpp>
+
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
-#include <sys/ioctl.h>
 
-#include <string>
-#include <vector>
-#include <sstream>
+#include <array>
 #include <cmath>
+#include <string>
 
-using std::placeholders::_1;
+namespace codec = gps_pub::codec;
 
 namespace {
 // Returns ROS time; if use_sim_time is true but no /clock has arrived yet
@@ -140,169 +140,11 @@ private:
   }
 
   // ---------- Utils ----------
-  static std::string trim(const std::string &s) {
-    auto b = s.find_first_not_of(" \r\n\t");
-    auto e = s.find_last_not_of(" \r\n\t");
-    if (b == std::string::npos) return "";
-    return s.substr(b, e - b + 1);
-  }
-
-  static std::vector<std::string> split(const std::string &s, char delim=',') {
-    std::vector<std::string> out; std::string tok; std::istringstream ss(s);
-    while (std::getline(ss, tok, delim)) out.push_back(tok);
-    return out;
-  }
-
-  static bool ddmm_to_deg(const std::string &ddmm, char hemi, double &out_deg) {
-    if (ddmm.empty()) return false;
-    auto dot = ddmm.find('.');
-    if (dot == std::string::npos || dot < 2) return false;
-    int mm_start = static_cast<int>(dot) - 2;
-    try {
-      double deg = std::stod(ddmm.substr(0, mm_start));
-      double minutes = std::stod(ddmm.substr(mm_start));
-      double dec = deg + minutes/60.0;
-      if (hemi=='S' || hemi=='W') dec = -dec;
-      out_deg = dec;
-      return true;
-    } catch (const std::exception &) {
-      return false;  // malformed numeric field — drop this sentence
-    }
-  }
-
-  // Validate the NMEA checksum: XOR of all chars between '$' and '*' must equal the
-  // two hex digits after '*'. Returns true when valid; also true when no '*' is
-  // present at all (some receivers omit it) so we don't reject otherwise-good lines.
-  static bool nmea_checksum_ok(const std::string &line) {
-    auto star = line.rfind('*');
-    if (star == std::string::npos) return true;        // no checksum field present
-    if (star + 2 >= line.size()) return false;         // '*' but missing the 2 hex digits
-    unsigned char sum = 0;
-    for (size_t i = 1; i < star; ++i) sum ^= static_cast<unsigned char>(line[i]);
-    try {
-      unsigned int given = std::stoul(line.substr(star + 1, 2), nullptr, 16);
-      return sum == given;
-    } catch (const std::exception &) {
-      return false;
-    }
-  }
-
-  // ---------- NMEA parsers (RMC + GGA) ----------
-  struct RMC {
-    bool valid=false; double lat=std::nan(""), lon=std::nan(""),
-    speed_kn=0.0, course_deg=std::nan(""); // A/V validity flag
-  };
-
-  struct GGA {
-    bool have=false; int fixq=0; int nsat=0; double hdop=0.0; double alt_m=std::nan("");
-  };
-
-  struct Ecef {
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
-  };
-
-  static constexpr double kWgs84A = 6378137.0;
-  static constexpr double kWgs84F = 1.0 / 298.257223563;
-  static constexpr double kWgs84ESq = kWgs84F * (2.0 - kWgs84F);
-
-  static double deg2rad(double degrees) {
-    return degrees * M_PI / 180.0;
-  }
-
-  static Ecef geodeticToEcef(double lat_deg, double lon_deg, double alt_m) {
-    const double lat_rad = deg2rad(lat_deg);
-    const double lon_rad = deg2rad(lon_deg);
-    const double sin_lat = std::sin(lat_rad);
-    const double cos_lat = std::cos(lat_rad);
-    const double sin_lon = std::sin(lon_rad);
-    const double cos_lon = std::cos(lon_rad);
-    const double n = kWgs84A / std::sqrt(1.0 - kWgs84ESq * sin_lat * sin_lat);
-
-    Ecef ecef;
-    ecef.x = (n + alt_m) * cos_lat * cos_lon;
-    ecef.y = (n + alt_m) * cos_lat * sin_lon;
-    ecef.z = (n * (1.0 - kWgs84ESq) + alt_m) * sin_lat;
-    return ecef;
-  }
-
   void setOrigin(double lat_deg, double lon_deg, double alt_m) {
     origin_latitude_deg_ = lat_deg;
     origin_longitude_deg_ = lon_deg;
     origin_altitude_m_ = alt_m;
-    origin_latitude_rad_ = deg2rad(lat_deg);
-    origin_longitude_rad_ = deg2rad(lon_deg);
-    origin_ecef_ = geodeticToEcef(lat_deg, lon_deg, alt_m);
     origin_set_ = true;
-  }
-
-  geometry_msgs::msg::PoseStamped buildPoseMessage(
-      const rclcpp::Time &stamp,
-      double latitude_deg,
-      double longitude_deg,
-      double altitude_m) const {
-    const Ecef current_ecef = geodeticToEcef(latitude_deg, longitude_deg, altitude_m);
-    const double dx = current_ecef.x - origin_ecef_.x;
-    const double dy = current_ecef.y - origin_ecef_.y;
-    const double dz = current_ecef.z - origin_ecef_.z;
-
-    const double sin_lat = std::sin(origin_latitude_rad_);
-    const double cos_lat = std::cos(origin_latitude_rad_);
-    const double sin_lon = std::sin(origin_longitude_rad_);
-    const double cos_lon = std::cos(origin_longitude_rad_);
-
-    geometry_msgs::msg::PoseStamped pose;
-    pose.header.stamp = stamp;
-    pose.header.frame_id = pose_frame_id_;
-
-    // Pose is a local ENU position in meters anchored at the configured origin.
-    pose.pose.position.x = -sin_lon * dx + cos_lon * dy;
-    pose.pose.position.y =
-      -sin_lat * cos_lon * dx - sin_lat * sin_lon * dy + cos_lat * dz;
-    pose.pose.position.z =
-      cos_lat * cos_lon * dx + cos_lat * sin_lon * dy + sin_lat * dz;
-    pose.pose.orientation.w = 1.0;
-    return pose;
-  }
-
-  static RMC parseRMC(const std::string &line) {
-    RMC r{};
-    if (line.size()<6 || line.substr(3,3)!="RMC") return r;
-    auto p = split(line, ',');
-    if (p.size() < 10) return r;
-    // $GxRMC,1:time,2:status(A/V),3:lat,4:N/S,5:lon,6:E/W,7:speed(kn),8:course,9:date,...
-    if (p[2]!="A") return r; // not valid
-    double lat, lon;
-    if (!ddmm_to_deg(p[3], p[4].empty() ? 'N' : p[4][0], lat)) return r;
-    if (!ddmm_to_deg(p[5], p[6].empty() ? 'E' : p[6][0], lon)) return r;
-    try {
-      r.speed_kn = p[7].empty()? 0.0 : std::stod(p[7]);
-      r.course_deg = p[8].empty()? std::nan("") : std::stod(p[8]);
-    } catch (const std::exception &) {
-      return r;  // malformed speed/course — leave r.valid false, drop sentence
-    }
-    r.valid = true;
-    r.lat = lat; r.lon = lon;
-    return r;
-  }
-
-  static GGA parseGGA(const std::string &line) {
-    GGA g{};
-    if (line.size()<6 || line.substr(3,3)!="GGA") return g;
-    auto p = split(line, ',');
-    if (p.size() < 10) return g;
-    // $GxGGA,time,lat,N,lon,E,fix,nsat,hdop,alt,M,...
-    try {
-      g.fixq = p[6].empty()? 0 : std::stoi(p[6]);
-      g.nsat = p[7].empty()? 0 : std::stoi(p[7]);
-      g.hdop = p[8].empty()? 0.0 : std::stod(p[8]);
-      g.alt_m = p[9].empty()? std::nan("") : std::stod(p[9]);
-    } catch (const std::exception &) {
-      return GGA{};  // malformed field — return a fresh (have=false) struct
-    }
-    g.have = true;
-    return g;
   }
 
   // ---------- Main read loop ----------
@@ -318,7 +160,7 @@ private:
       // Extract complete lines
       size_t pos;
       while ((pos = line_buffer_.find('\n')) != std::string::npos) {
-        std::string raw = trim(line_buffer_.substr(0, pos));
+        std::string raw = codec::trim(line_buffer_.substr(0, pos));
         line_buffer_.erase(0, pos + 1);
         handleLine(raw);
       }
@@ -327,7 +169,7 @@ private:
 
   void handleLine(const std::string &raw) {
     if (raw.empty() || raw[0] != '$') return;
-    if (!nmea_checksum_ok(raw)) {
+    if (!codec::nmea_checksum_ok(raw)) {
       RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                            "Dropping NMEA sentence with bad checksum");
       return;
@@ -344,66 +186,93 @@ private:
 
     // Parse
     if (raw.size() >= 6) {
-      auto typ = raw.substr(3,3);
+      auto typ = raw.substr(3, 3);
       if (typ == "GGA") {
-        last_gga_ = parseGGA(raw);
+        last_gga_ = codec::parseGGA(raw);
       } else if (typ == "RMC") {
-        auto rmc = parseRMC(raw);
+        auto rmc = codec::parseRMC(raw);
         if (rmc.valid) publishFix(now, rmc, last_gga_);
       }
     }
   }
 
-  void publishFix(const rclcpp::Time &stamp, const RMC &rmc, const GGA &gga) {
+  // Shared by the real (NMEA) and synthetic paths: publishes the fix and the
+  // optional velocity/pose topics with identical semantics for both modes.
+  void publishAll(const rclcpp::Time &stamp,
+                  double latitude, double longitude, double altitude,
+                  uint8_t status,
+                  const std::array<double, 9> &covariance,
+                  uint8_t covariance_type,
+                  double linear_velocity_x) {
     sensor_msgs::msg::NavSatFix fix;
     fix.header.stamp = stamp;
     fix.header.frame_id = frame_id_;
-
-    // Status
     fix.status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
-    // GGA fix quality: 0=invalid,1=GPS,2=DGPS,4=RTK Fixed,5=RTK Float...
-    int q = gga.fixq;
-    fix.status.status = (q >= 1) ? sensor_msgs::msg::NavSatStatus::STATUS_FIX
-                                 : sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX;
-
-    fix.latitude  = rmc.lat;
-    fix.longitude = rmc.lon;
-    fix.altitude  = std::isnan(gga.alt_m) ? 0.0 : gga.alt_m;
-
-    // Covariance from HDOP (rough, optional)
-    if (gga.hdop > 0.0) {
-      double sigma_h = gga.hdop * 5.0;      // ~5 m per 1 HDOP (conservative)
-      double sigma_v = sigma_h * 2.0;
-      fix.position_covariance = {
-        sigma_h*sigma_h, 0, 0,
-        0, sigma_h*sigma_h, 0,
-        0, 0, sigma_v*sigma_v
-      };
-      fix.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
-    } else {
-      fix.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
-    }
+    fix.status.status = status;
+    fix.latitude = latitude;
+    fix.longitude = longitude;
+    fix.altitude = altitude;
+    fix.position_covariance = covariance;
+    fix.position_covariance_type = covariance_type;
 
     fix_pub_->publish(fix);
 
     if (pub_vel_) {
       geometry_msgs::msg::TwistStamped vel;
       vel.header = fix.header;
-      vel.twist.linear.x = rmc.speed_kn * 0.514444; // knots -> m/s
+      vel.twist.linear.x = linear_velocity_x;
       vel_pub_->publish(vel);
     }
 
-    if (pub_pose_ && fix.status.status == sensor_msgs::msg::NavSatStatus::STATUS_FIX) {
+    // The pose origin is lazily locked on the first actually-published fix.
+    if (pub_pose_ && status == sensor_msgs::msg::NavSatStatus::STATUS_FIX) {
       if (!origin_set_) {
-        setOrigin(fix.latitude, fix.longitude, fix.altitude);
+        setOrigin(latitude, longitude, altitude);
         RCLCPP_INFO(
           get_logger(),
           "Locked GPS pose origin to lat=%.8f lon=%.8f alt=%.2f in frame %s",
           origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_, pose_frame_id_.c_str());
       }
 
-      pose_pub_->publish(buildPoseMessage(stamp, fix.latitude, fix.longitude, fix.altitude));
+      const codec::Enu enu = codec::enu_from_origin(
+        origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_,
+        latitude, longitude, altitude);
+
+      geometry_msgs::msg::PoseStamped pose;
+      pose.header.stamp = stamp;
+      pose.header.frame_id = pose_frame_id_;
+      pose.pose.position.x = enu.e;
+      pose.pose.position.y = enu.n;
+      pose.pose.position.z = enu.u;
+      pose.pose.orientation.w = 1.0;
+      pose_pub_->publish(pose);
     }
+  }
+
+  void publishFix(const rclcpp::Time &stamp, const codec::Rmc &rmc, const codec::Gga &gga) {
+    // GGA fix quality: 0=invalid,1=GPS,2=DGPS,4=RTK Fixed,5=RTK Float...
+    int q = gga.fixq;
+    uint8_t status = (q >= 1) ? sensor_msgs::msg::NavSatStatus::STATUS_FIX
+                              : sensor_msgs::msg::NavSatStatus::STATUS_NO_FIX;
+
+    double altitude = std::isnan(gga.alt_m) ? 0.0 : gga.alt_m;
+
+    // Covariance from HDOP (rough, optional)
+    std::array<double, 9> covariance{};
+    uint8_t covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+    if (gga.hdop > 0.0) {
+      double sigma_h = gga.hdop * 5.0;      // ~5 m per 1 HDOP (conservative)
+      double sigma_v = sigma_h * 2.0;
+      covariance = {
+        sigma_h*sigma_h, 0, 0,
+        0, sigma_h*sigma_h, 0,
+        0, 0, sigma_v*sigma_v
+      };
+      covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
+    }
+
+    publishAll(stamp, rmc.lat, rmc.lon, altitude, status, covariance, covariance_type,
+               rmc.speed_kn * 0.514444); // knots -> m/s
   }
 
   void publishSyntheticFix() {
@@ -411,34 +280,18 @@ private:
       setOrigin(origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_);
     }
 
-    const auto stamp = safe_now(this);
-
-    sensor_msgs::msg::NavSatFix fix;
-    fix.header.stamp = stamp;
-    fix.header.frame_id = frame_id_;
-    fix.status.service = sensor_msgs::msg::NavSatStatus::SERVICE_GPS;
-    fix.status.status = sensor_msgs::msg::NavSatStatus::STATUS_FIX;
-    fix.latitude = origin_latitude_deg_;
-    fix.longitude = origin_longitude_deg_;
-    fix.altitude = origin_altitude_m_;
-    fix.position_covariance = {
+    const std::array<double, 9> covariance = {
       1.0, 0.0, 0.0,
       0.0, 1.0, 0.0,
       0.0, 0.0, 4.0
     };
-    fix.position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
-    fix_pub_->publish(fix);
 
-    if (pub_vel_) {
-      geometry_msgs::msg::TwistStamped vel;
-      vel.header = fix.header;
-      vel.twist.linear.x = 0.0;
-      vel_pub_->publish(vel);
-    }
-
-    if (pub_pose_) {
-      pose_pub_->publish(buildPoseMessage(stamp, fix.latitude, fix.longitude, fix.altitude));
-    }
+    publishAll(safe_now(this),
+               origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_,
+               sensor_msgs::msg::NavSatStatus::STATUS_FIX,
+               covariance,
+               sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED,
+               0.0);
   }
 
   // Members
@@ -453,12 +306,9 @@ private:
   double origin_latitude_deg_{0.0};
   double origin_longitude_deg_{0.0};
   double origin_altitude_m_{0.0};
-  double origin_latitude_rad_{0.0};
-  double origin_longitude_rad_{0.0};
   std::string line_buffer_;
 
-  GGA last_gga_{};
-  Ecef origin_ecef_{};
+  codec::Gga last_gga_{};
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_pub_;
