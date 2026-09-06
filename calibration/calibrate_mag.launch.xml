@@ -1,0 +1,53 @@
+<!--
+  calibrate_mag.launch.xml - recolha de calibracao do magnetometro.
+
+  O que faz:
+    1. Arranca o deploy_joystick em modo raw (apply_mag_calib:=false), para
+       o /mag_data sair sem offset/matriz (e' o que o no de calibracao precisa).
+    2. Arranca o no de calibracao, que ouve /mag_data e, ao Ctrl+C, calcula e
+       grava o YAML (offset + matriz + veredicto de qualidade).
+    3. Grava um bag dos dados crus, para poder recalibrar/validar offline depois.
+
+  Como usar:
+    ros2 launch <pkg> calibrate_mag.launch.xml
+    -> rodar o carro (voltas lentas em yaw, nivelado) -> Ctrl+C
+    -> sai config/mag_calib.yaml E fica o bag em bags/mag_calib
+
+  Depois, no funcionamento normal, o car_launch arranca o deploy_joystick com
+  apply_mag_calib:=true e mag_calib_path apontando para este YAML.
+
+  PRE-REQUISITOS:
+    - deploy_joystick com o patch da flag (apply_mag_calib / mag_calib_path).
+    - calibrate_magnetemeter registado no setup.py do utils:
+        'mag_calibration = calibration.calibrate_magnetemeter:main'
+    - yaml-cpp declarado no CMakeLists.txt/package.xml do actuatinator_3000.
+-->
+
+<launch>
+    <!-- caminho do YAML de saida; tem de ser o mesmo que o deploy_joystick le
+         depois (parametro mag_calib_path). -->
+    <arg name="calib_path" default="config/mag_calib.yaml"/>
+
+    <!-- modo de calibracao: os dados do carro so' variam em yaw (sem variacao
+         em altura), logo forca-se modo planar (2D). Para desligar: planar:="" -->
+    <arg name="planar" default="--planar"/>
+
+    <!-- 1. fonte do mag, em CRU (a flag em false = publica sem calibrar) -->
+    <node pkg="actuatinator_3000" exec="deploy_joystick" output="screen">
+        <param name="apply_mag_calib" value="false"/>
+    </node>
+
+    <node pkg="commonsense" exec="mag_compass.py" name="mag_compass" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- 2. no de calibracao: ouve /mag_data, grava o YAML no Ctrl+C.
+         A opcao debug-window (nos args abaixo) abre o grafico 3D ao vivo;
+         tira-a se a Jetson nao tiver ecra. -->
+    <node pkg="utils" exec="calibrate_mag" output="screen"
+          args="--output $(var calib_path) $(var planar)"/>
+
+    <!-- 3. grava bag dos dados crus (para recalibrar/validar offline) -->
+    <executable cmd="ros2 bag record -o bags/mag_calib /mag_data /imu_data"
+                output="screen"/>
+</launch>
