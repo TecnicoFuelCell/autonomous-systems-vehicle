@@ -16,7 +16,7 @@ DeadmanActuatorNode::DeadmanActuatorNode()
 : Node("deadman_actuator"), uart_fd_(-1)
 {
     std::string serial_port =
-        this->declare_parameter<std::string>("serial_port", "/dev/ttyUSB0");
+        this->declare_parameter<std::string>("serial_port", "/dev/ttyACM0");
 
     uart_fd_ = uart_utils::discover_or_fallback(this->get_logger(), serial_port);
     if (uart_fd_ < 0) {
