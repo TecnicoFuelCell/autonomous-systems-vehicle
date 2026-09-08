@@ -1,5 +1,5 @@
-#ifndef DEADMAN_ACTUATOR_UART_UTILS_HPP_
-#define DEADMAN_ACTUATOR_UART_UTILS_HPP_
+#ifndef UART_READER_UART_UTILS_HPP_
+#define UART_READER_UART_UTILS_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <vector>
 
-namespace deadman_actuator {
+namespace uart_reader {
 namespace uart_utils {
 
 inline std::string trim(const std::string& str) {
@@ -65,16 +65,17 @@ inline int discover_or_fallback(
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
-    int fd = open(selected_port.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
+    // Read-only: this port is CANToPC upstream-only, no other code writes to it.
+    int fd = open(selected_port.c_str(), O_RDONLY | O_NOCTTY | O_NDELAY);
     if (fd == -1) {
         RCLCPP_ERROR(logger, "Failed to open UART port: %s", selected_port.c_str());
     } else {
-        RCLCPP_INFO(logger, "UART port opened (fd: %d): %s", fd, selected_port.c_str());
+        RCLCPP_INFO(logger, "UART port opened read-only (fd: %d): %s", fd, selected_port.c_str());
     }
     return fd;
 }
 
 } // namespace uart_utils
-} // namespace deadman_actuator
+} // namespace uart_reader
 
-#endif // DEADMAN_ACTUATOR_UART_UTILS_HPP_
+#endif // UART_READER_UART_UTILS_HPP_
