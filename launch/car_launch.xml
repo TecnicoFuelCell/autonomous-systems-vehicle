@@ -18,6 +18,13 @@
         <param name="serial_port" value="/dev/ttyACM0"/>
     </node>
 
+    <!-- UART writer: subscribes to /joystick_movement (ImSpeed), gated by
+         /deadman/alive, and writes motor/steering commands to the PCSender
+         serial device (which translates them into CAN frames for the motors). -->
+    <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
+        <param name="serial_port" value="/dev/ttyACM1"/>
+    </node>
+
     <!-- Deadman watchdog: consumes /serial/deadman ALIVE lines from the reader
          and publishes /deadman/alive (disarms when ALIVE goes stale). -->
     <node pkg="deadman_pub" exec="deadman_node" name="deadman_node" output="screen">
