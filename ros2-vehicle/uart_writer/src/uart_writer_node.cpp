@@ -54,9 +54,6 @@ UartWriterNode::UartWriterNode()
 
     RCLCPP_INFO(this->get_logger(), "UART port opened for PCSender: %s", serial_port.c_str());
 
-    deadman_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-        "/deadman/alive", 10, std::bind(&UartWriterNode::deadman_callback, this, std::placeholders::_1));
-
     movement_sub_ = this->create_subscription<car_msgs::msg::ImSpeed>(
         "/joystick_movement", 10, std::bind(&UartWriterNode::joy_callback, this, std::placeholders::_1));
 
@@ -67,20 +64,10 @@ UartWriterNode::~UartWriterNode() {
     if (uart_fd_ >= 0) close(uart_fd_);
 }
 
-void UartWriterNode::deadman_callback(const std_msgs::msg::Bool::SharedPtr msg) {
-    car_on_ = msg->data;
-    RCLCPP_DEBUG(this->get_logger(), "Deadman status updated: %s", car_on_ ? "ALIVE" : "DEAD");
-}
-
 void UartWriterNode::joy_callback(const car_msgs::msg::ImSpeed::SharedPtr msg) {
     int joystick_data = msg->move;
     std::string joystick_side = msg->which;
     int joystick_steering = msg->analog;
-
-    if (!car_on_) {
-        RCLCPP_DEBUG(this->get_logger(), "car NOT alive");
-        return;
-    }
 
     if (std::abs(joystick_steering) > 25) {
         joystick_steering += (joystick_steering < 0) ? 25 : -25;
