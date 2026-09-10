@@ -78,8 +78,6 @@ struct Rmc {
   bool valid = false;
   double lat = std::nan("");
   double lon = std::nan("");
-  double speed_kn = 0.0;
-  double course_deg = std::nan("");  // A/V validity flag
 };
 
 struct Gga {
@@ -94,21 +92,12 @@ inline Rmc parseRMC(const std::string &line) {
   Rmc r;
   if (line.size() < 6 || line.substr(3, 3) != "RMC") return r;
   auto p = split(line, ',');
-  if (p.size() < 10) return r;
+  if (p.size() < 7) return r;
   // $GxRMC,1:time,2:status(A/V),3:lat,4:N/S,5:lon,6:E/W,7:speed(kn),8:course,9:date,...
   if (p[2] != "A") return r;  // not valid
-  double lat, lon;
-  if (!ddmm_to_deg(p[3], p[4].empty() ? 'N' : p[4][0], lat)) return r;
-  if (!ddmm_to_deg(p[5], p[6].empty() ? 'E' : p[6][0], lon)) return r;
-  try {
-    r.speed_kn = p[7].empty() ? 0.0 : std::stod(p[7]);
-    r.course_deg = p[8].empty() ? std::nan("") : std::stod(p[8]);
-  } catch (const std::exception &) {
-    return r;  // malformed speed/course -- leave r.valid false, drop sentence
-  }
+  if (!ddmm_to_deg(p[3], p[4].empty() ? 'N' : p[4][0], r.lat)) return r;
+  if (!ddmm_to_deg(p[5], p[6].empty() ? 'E' : p[6][0], r.lon)) return r;
   r.valid = true;
-  r.lat = lat;
-  r.lon = lon;
   return r;
 }
 
