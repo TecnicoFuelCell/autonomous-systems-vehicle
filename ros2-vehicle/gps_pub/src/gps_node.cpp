@@ -3,8 +3,6 @@
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <sensor_msgs/msg/nav_sat_status.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/twist_stamped.hpp>
-#include <nmea_msgs/msg/sentence.hpp>
 
 #include <gps_pub/nmea.hpp>
 
@@ -37,8 +35,6 @@ public:
     baudrate_ = this->declare_parameter<int>("baudrate", 115200);
     frame_id_ = this->declare_parameter<std::string>("frame_id", "gps_link");
     pose_frame_id_ = this->declare_parameter<std::string>("pose_frame_id", "gps_local");
-    pub_raw_  = this->declare_parameter<bool>("publish_raw_nmea", true);
-    pub_vel_  = this->declare_parameter<bool>("publish_velocity", true);
     pub_pose_ = this->declare_parameter<bool>("publish_pose", true);
     synthetic_mode_ = this->declare_parameter<bool>("synthetic_mode", false);
     synthetic_rate_hz_ = this->declare_parameter<double>("synthetic_rate_hz", 10.0);
@@ -50,10 +46,7 @@ public:
     // pubs (TODO: review to just keep 1?)
     // topic with important stuff (latitude, longitude)
     fix_pub_  = this->create_publisher<sensor_msgs::msg::NavSatFix>("/gps/fix", 10);
-    if (pub_vel_) vel_pub_  = this->create_publisher<geometry_msgs::msg::TwistStamped>("/gps/vel", 10);
     if (pub_pose_) pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/gps_pose", 10);
-    // publisher for the raw line (ex: $GPGGA,...,..,..)
-    if (pub_raw_) nmea_pub_ = this->create_publisher<nmea_msgs::msg::Sentence>("/gps/nmea_sentence", 10);
 
     if (!use_first_fix_as_origin_) {
       setOrigin(origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_);
@@ -177,13 +170,6 @@ private:
 
     auto now = safe_now(this);
 
-    if (pub_raw_) {
-      nmea_msgs::msg::Sentence s;
-      s.header.stamp = now;
-      s.sentence = raw;
-      nmea_pub_->publish(s);
-    }
-
     // Parse
     if (raw.size() >= 6) {
       auto typ = raw.substr(3, 3);
@@ -197,13 +183,12 @@ private:
   }
 
   // Shared by the real (NMEA) and synthetic paths: publishes the fix and the
-  // optional velocity/pose topics with identical semantics for both modes.
+  // optional pose topic with identical semantics for both modes.
   void publishAll(const rclcpp::Time &stamp,
                   double latitude, double longitude, double altitude,
                   uint8_t status,
                   const std::array<double, 9> &covariance,
-                  uint8_t covariance_type,
-                  double linear_velocity_x) {
+                  uint8_t covariance_type) {
     sensor_msgs::msg::NavSatFix fix;
     fix.header.stamp = stamp;
     fix.header.frame_id = frame_id_;
@@ -216,13 +201,6 @@ private:
     fix.position_covariance_type = covariance_type;
 
     fix_pub_->publish(fix);
-
-    if (pub_vel_) {
-      geometry_msgs::msg::TwistStamped vel;
-      vel.header = fix.header;
-      vel.twist.linear.x = linear_velocity_x;
-      vel_pub_->publish(vel);
-    }
 
     // The pose origin is lazily locked on the first actually-published fix.
     if (pub_pose_ && status == sensor_msgs::msg::NavSatStatus::STATUS_FIX) {
@@ -271,8 +249,7 @@ private:
       covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED;
     }
 
-    publishAll(stamp, rmc.lat, rmc.lon, altitude, status, covariance, covariance_type,
-               rmc.speed_kn * 0.514444); // knots -> m/s
+    publishAll(stamp, rmc.lat, rmc.lon, altitude, status, covariance, covariance_type);
   }
 
   void publishSyntheticFix() {
@@ -290,15 +267,14 @@ private:
                origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_,
                sensor_msgs::msg::NavSatStatus::STATUS_FIX,
                covariance,
-               sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED,
-               0.0);
+               sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_APPROXIMATED);
   }
 
   // Members
   int uart_fd_{-1};
   std::string port_, frame_id_, pose_frame_id_;
   int baudrate_{115200};
-  bool pub_raw_{true}, pub_vel_{true}, pub_pose_{true};
+  bool pub_pose_{true};
   bool synthetic_mode_{false};
   bool use_first_fix_as_origin_{true};
   bool origin_set_{false};
@@ -312,9 +288,7 @@ private:
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_pub_;
-  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr vel_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
-  rclcpp::Publisher<nmea_msgs::msg::Sentence>::SharedPtr nmea_pub_;
 };
 
 int main(int argc, char **argv) {
