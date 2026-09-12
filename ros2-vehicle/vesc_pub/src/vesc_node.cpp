@@ -46,7 +46,7 @@ VesceNode::VesceNode()
     std::string vesc_topic = this->declare_parameter<std::string>("vesc_topic", "/vesc_data");
 
     publisher_ = this->create_publisher<car_msgs::msg::VescData>(vesc_topic, 1);
-    subscription_ = this->create_subscription<std_msgs::msg::String>("/serial/vesc", 10,
+    subscription_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/vesc", 10,
         std::bind(&VesceNode::process, this, std::placeholders::_1));
 }
 

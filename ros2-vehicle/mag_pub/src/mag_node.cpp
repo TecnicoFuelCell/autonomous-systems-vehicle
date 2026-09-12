@@ -39,7 +39,7 @@ MagNode::MagNode()
     load_mag_calibration();
 
     publisher_ = this->create_publisher<sensor_msgs::msg::MagneticField>(mag_topic, 1);
-    subscription_ = this->create_subscription<std_msgs::msg::String>("/serial/mag", 10,
+    subscription_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/mag", 10,
         std::bind(&MagNode::process, this, std::placeholders::_1));
 }
 

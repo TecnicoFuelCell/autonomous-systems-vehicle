@@ -26,7 +26,7 @@ DeadmanNode::DeadmanNode()
 
     alive_pub_ = this->create_publisher<std_msgs::msg::Bool>("/deadman/alive", 1);
 
-    serial_deadman_sub_ = this->create_subscription<std_msgs::msg::String>("/serial/deadman", 10,
+    serial_deadman_sub_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/deadman", 10,
         std::bind(&DeadmanNode::serial_deadman_callback, this, std::placeholders::_1));
 
     // External re-arm path: a fresh /deadman/alive=true (from another source)
@@ -35,7 +35,7 @@ DeadmanNode::DeadmanNode()
         std::bind(&DeadmanNode::deadman_callback, this, std::placeholders::_1));
 
     // Start the deadman stale so the system stays disarmed until a real
-    // ALIVE (/serial/deadman) or a fresh /deadman/alive=true arrives.
+    // ALIVE (/vehicle_internal/serial/deadman) or a fresh /deadman/alive=true arrives.
     last_alive_time_ = std::chrono::steady_clock::now() - std::chrono::seconds(10);
 
     // Watchdog only ever DISARMS; arming is done solely by a real ALIVE line
@@ -74,7 +74,7 @@ void DeadmanNode::process_alive() {
     const double elapsed_seconds = elapsed.count();
 
     // Watchdog only ever DISARMS. Re-arming is done exclusively by a real ALIVE
-    // (/serial/deadman) or a fresh /deadman/alive=true.
+    // (/vehicle_internal/serial/deadman) or a fresh /deadman/alive=true.
     if (car_on_ && elapsed_seconds > alive_timeout_) {
         car_on_ = false;
 

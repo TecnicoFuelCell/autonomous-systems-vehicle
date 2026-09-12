@@ -3,7 +3,7 @@
 <package format="3">
   <name>uart_reader</name>
   <version>0.0.1</version>
-  <description>ROS 2 C++ package that reads raw sensor lines from the CANToPC UART and republishes them on /serial/*</description>
+  <description>ROS 2 C++ package that reads raw sensor lines from the CANToPC UART and republishes them on /vehicle_internal/serial/*</description>
   <maintainer email="user@todo.todo">User</maintainer>
   <license>Apache-2.0</license>
 
