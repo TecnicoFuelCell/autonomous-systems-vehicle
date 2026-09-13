@@ -11,7 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_IMAGE: ghcr.io/tecnofuelcell/docker-zed-ros2:jazzy
   # car_msgs (custom messages) lives in the `core` submodule and must build
   # before the vehicle packages that depend on it.
   CORE_MSG_PATH: core/ros2_ws/src/car_msgs
@@ -21,9 +20,10 @@ jobs:
   build-and-test:
     name: Build car_msgs + ros2-vehicle and run tests
     runs-on: ubuntu-24.04
+    container:
+      image: ros:jazzy-ros-base
     permissions:
       contents: read
-      packages: read
     steps:
       - name: Checkout (with core submodule)
         uses: actions/checkout@v4
@@ -36,37 +36,23 @@ jobs:
       - name: Rewrite submodule URLs to HTTPS
         run: git config --global url."https://github.com/".insteadOf "git@github.com:"
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends git
 
-      - name: Build and test
-        env:
-          WORKSPACE: /github/workspace
+      - name: rosdep install
         run: |
-          set -euo pipefail
-          docker run --rm \
-            --workdir "$WORKSPACE" \
-            -v "$PWD:$WORKSPACE" \
-            --entrypoint /bin/bash \
-            "$CI_IMAGE" -c '
-              set -euo pipefail
-              source /opt/ros/jazzy/setup.bash
-              if [ -f /opt/share/workspace/install/setup.bash ]; then
-                source /opt/share/workspace/install/setup.bash
-              fi
-              echo "--- rosdep install ---"
-              rosdep update
-              rosdep install --from-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"' --ignore-src -r -y
-              echo "--- colcon build ---"
-              colcon build --base-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"'
-              echo "--- colcon test ---"
-              colcon test --base-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"'
-              colcon test-result --all --verbose
-            '
+          rosdep update
+          rosdep install --from-paths ${{ env.CORE_MSG_PATH }} ${{ env.VEHICLE_WORKSPACE }} \
+            --ignore-src -r -y
+
+      - name: colcon build
+        run: |
+          colcon build --base-paths ${{ env.CORE_MSG_PATH }} ${{ env.VEHICLE_WORKSPACE }}
+
+      - name: colcon test
+        run: |
+          colcon test --base-paths ${{ env.CORE_MSG_PATH }} ${{ env.VEHICLE_WORKSPACE }}
+          colcon test-result --all --verbose
 
       - name: Upload colcon logs
         if: always()
