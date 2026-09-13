@@ -12,7 +12,7 @@
     </node>
     
     <!-- UART reader: owns the CANToPC serial device (read-only upstream) and
-         republishes each raw sensor line on /serial/* for the decode nodes below. -->
+         republishes each raw sensor line on /vehicle_internal/serial/* for the decode nodes below. -->
     <node pkg="uart_reader" exec="uart_node" name="uart_node" output="screen">
         <param from="config/car_params.yaml"/>
         <param name="serial_port" value="/dev/ttyACM0"/>
@@ -25,13 +25,13 @@
         <param name="serial_port" value="/dev/ttyACM1"/>
     </node>
 
-    <!-- Deadman watchdog: consumes /serial/deadman ALIVE lines from the reader
+    <!-- Deadman watchdog: consumes /vehicle_internal/serial/deadman ALIVE lines from the reader
          and publishes /deadman/alive (disarms when ALIVE goes stale). -->
     <node pkg="deadman_pub" exec="deadman_node" name="deadman_node" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
 
-    <!-- Sensor decode nodes: subscribe to raw /serial/* lines from uart_reader
+    <!-- Sensor decode nodes: subscribe to raw /vehicle_internal/serial/* lines from uart_reader
          and publish the typed topics (names unchanged for downstream consumers). -->
     <node pkg="vesc_pub" exec="vesc_node" name="vesc_node" output="screen"/>
     <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen"/>

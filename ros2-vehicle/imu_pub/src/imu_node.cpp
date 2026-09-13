@@ -50,9 +50,9 @@ ImuNode::ImuNode()
     current_imu_msg_.header.frame_id = frame_id;
 
     publisher_ = this->create_publisher<sensor_msgs::msg::Imu>(imu_topic, 1);
-    acc_sub_ = this->create_subscription<std_msgs::msg::String>("/serial/acc", 10,
+    acc_sub_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/acc", 10,
         std::bind(&ImuNode::process_acc, this, std::placeholders::_1));
-    gyro_sub_ = this->create_subscription<std_msgs::msg::String>("/serial/gyro", 10,
+    gyro_sub_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/gyro", 10,
         std::bind(&ImuNode::process_gyro, this, std::placeholders::_1));
 }
 
