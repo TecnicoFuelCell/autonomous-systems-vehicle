@@ -1,0 +1,45 @@
+name: colcon build (vehicle)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Rewrite SSH submodule URL to HTTPS + token
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.CORE_SUBMODULE_PAT }}@github.com/".insteadOf "git@github.com:"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.CORE_SUBMODULE_PAT }}
+
+      - name: Setup ROS 2 Jazzy
+        uses: ros-tooling/setup-ros@v0.7
+        with:
+          required-ros-distributions: jazzy
+
+      - name: Install package dependencies
+        run: |
+          sudo rosdep init || true
+          rosdep update
+          rosdep install \
+            --from-paths ros2-vehicle core/ros2_ws/src/car_msgs \
+            --ignore-src \
+            --rosdistro jazzy \
+            -y
+
+      - name: colcon build vehicle packages
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build \
+            --base-paths ros2-vehicle core/ros2_ws/src/car_msgs \
+            --event-handlers console_cohesion+ \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release
