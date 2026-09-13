@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_IMAGE: ghcr.io/tecnofuelcell/docker-zed-ros2:jazzy
+  # car_msgs (custom messages) lives in the `core` submodule and must build
+  # before the vehicle packages that depend on it.
+  CORE_MSG_PATH: core/ros2_ws/src/car_msgs
+  VEHICLE_WORKSPACE: ros2-vehicle
+
+jobs:
+  build-and-test:
+    name: Build car_msgs + ros2-vehicle and run tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout (with core submodule)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # .gitmodules points the submodule at an SSH URL; rewrite it so the
+      # token-based HTTPS auth used by checkout applies to submodules too.
+      - name: Rewrite submodule URLs to HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and test
+        env:
+          WORKSPACE: /github/workspace
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --workdir "$WORKSPACE" \
+            -v "$PWD:$WORKSPACE" \
+            --entrypoint /bin/bash \
+            "$CI_IMAGE" -c '
+              set -euo pipefail
+              source /opt/ros/jazzy/setup.bash
+              if [ -f /opt/share/workspace/install/setup.bash ]; then
+                source /opt/share/workspace/install/setup.bash
+              fi
+              echo "--- rosdep install ---"
+              rosdep update
+              rosdep install --from-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"' --ignore-src -r -y
+              echo "--- colcon build ---"
+              colcon build --base-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"'
+              echo "--- colcon test ---"
+              colcon test --base-paths '"$CORE_MSG_PATH"' '"$VEHICLE_WORKSPACE"'
+              colcon test-result --all --verbose
+            '
+
+      - name: Upload colcon logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: colcon-logs
+          path: log/
+          if-no-files-found: ignore
