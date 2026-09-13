@@ -1,16 +1,15 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>deadman_actuator</name>
+  <name>uart_reader</name>
   <version>0.0.1</version>
-  <description>ROS 2 C++ package for the deadman watchdog and joystick-to-serial actuation</description>
+  <description>ROS 2 C++ package that reads raw sensor lines from the CANToPC UART and republishes them on /vehicle_internal/serial/*</description>
   <maintainer email="user@todo.todo">User</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>car_msgs</depend>
   <depend>std_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>

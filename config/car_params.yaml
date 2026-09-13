@@ -24,6 +24,10 @@ gps_publisher:
     origin_altitude: 0.0
     synthetic_mode: false
 
+deadman_node:
+  ros__parameters:
+    alive_timeout: 0.5 # seconds without an ALIVE line before disarming
+
 # camera
 webcam_publisher:   # elgato_pub.py
   ros__parameters:

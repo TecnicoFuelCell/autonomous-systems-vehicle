@@ -34,7 +34,7 @@ DirNode::DirNode()
     std::string dir_topic = this->declare_parameter<std::string>("dir_topic", "/dir_data");
 
     publisher_ = this->create_publisher<car_msgs::msg::Dir>(dir_topic, 1);
-    subscription_ = this->create_subscription<std_msgs::msg::String>("/serial/dir", 10,
+    subscription_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/dir", 10,
         std::bind(&DirNode::process, this, std::placeholders::_1));
 }
 

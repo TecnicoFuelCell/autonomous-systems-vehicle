@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(mag_pub)
+project(deadman_pub)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -7,28 +7,23 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(yaml-cpp REQUIRED)
 
-add_executable(mag_node
-  src/mag_node.cpp
+add_executable(deadman_node
+  src/deadman_node.cpp
 )
 
-target_include_directories(mag_node PUBLIC
+target_include_directories(deadman_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(mag_node
+ament_target_dependencies(deadman_node
   rclcpp
-  sensor_msgs
   std_msgs
 )
 
-target_link_libraries(mag_node yaml-cpp)
-
-install(TARGETS mag_node
+install(TARGETS deadman_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
