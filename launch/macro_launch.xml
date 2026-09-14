@@ -1,0 +1,79 @@
+ <!-- Launch for full real time pipeline on car-->
+
+<launch>
+    <node pkg="perception" exec="manual_calibration_data_out" name="manual_calibration_data_out" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+    <node pkg="perception" exec="undistort_image" name="undistort_image" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- YOLO -->
+    <node pkg="perception" exec="detection_model" name="detection_model" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>   
+    <node pkg="graph_slam_cpp" exec="ground_plane_homography" name="lane_lines_homography" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- FASTSAM -->
+    <!--node pkg="perception" exec="fastSAM_N" name="fastSAM_N" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node-->
+
+
+    <!-- Static transform publisher -->
+    <node pkg="tf2_ros" exec="static_transform_publisher" name="map_to_odom" output="screen" args="0 0 0 0 0 0 map odom">
+        <param name="use_sim_time" value="true"/>
+    </node>
+
+    <!-- Add RViz node -->
+    <!--<node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/-->
+
+
+    <!--<node pkg="graph_slam_cpp" exec="graph_slam_cpp_node" name="graph_slam_cpp_node" output="screen" />-->
+    
+    <node pkg="commonsense" exec="odom" name="odom" output="screen"/>
+
+    <node pkg="actuatinator_3000" exec="deploy_joystick" name="deadman_reader" output="screen" />
+    <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
+        <param name="dev" value="/dev/input/js0"/>
+        <param name="deadzone" value="0.05"/>
+        <param name="autorepeat_rate" value="20.0"/>
+    </node>
+
+    <node pkg="commonsense" exec="joystick_reader" name="joystick_reader" output="screen" > 
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- TODO: check this but launching actuators twice looks like a big no no-->
+    <!-- <node pkg="actuatinator_3000" exec="deploy_joystick" output="screen" /> -->
+
+
+    <node pkg="commonsense" exec="replicate_msg" name="replicate_msg" output="screen" />
+    
+    <!-- CAMERA -->
+    <node pkg="commonsense" exec="elgato_pub.py" name="webcam_publisher" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
+         across runs (default is "use first GPS fix as origin" -> every
+         recording ends up in its own local frame and the prior map only lines
+         up by accident). Values match prior_map.json gps_ref. -->
+    <node pkg="commonsense" exec="gps_publisher" name="gps_publisher" output="screen">
+        <param name="use_first_fix_as_origin" value="false"/>
+        <param name="origin_latitude"  value="38.7366804"/>
+        <param name="origin_longitude" value="-9.300988216666667"/>
+        <param name="origin_altitude"  value="0.0"/>
+    </node>
+    
+    <!--<node pkg="mpc_controller" exec="mpc" name="mpc" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>-->
+
+
+
+
+
+</launch>
