@@ -125,10 +125,10 @@ void loop() {
 
             // ID 1002 for Throttle
             if(transformed_current==0 && zeroSent==false){
-                can.vesc_set_erpm(0);
+                can.vesc_set_current(0);
                 zeroSent = true;    
             }else{
-                can.vesc_set_erpm(transformed_current*4);
+                can.vesc_set_current(transformed_current*4);
                 zeroSent = false;
             }
         } 
@@ -188,8 +188,8 @@ float extractCurrent(String input) {
     // "R2:" is 3 chars
     String numericPart = input.substring(3);
     int r2_value = numericPart.toInt();
-    return r2_value;
-    //return (CURRENT * (float)r2_value) / 255.0f;
+    //return r2_value;
+    return (CURRENT * (float)r2_value) / 255.0f;
 }
 
 byte sendDirCan(short int value) {
