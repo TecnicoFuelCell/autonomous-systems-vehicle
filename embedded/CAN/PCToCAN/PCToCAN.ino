@@ -45,6 +45,12 @@ unsigned long lastHeartbeat = 0;
 const unsigned long heartbeatInterval = 1000;   // 1 Hz
 uint8_t heartbeatCounter = 0;
 
+// Watchdog de segurança: se o PC deixar de enviar comandos dentro de cmdTimeout,
+// volta o brake/rpm a zero para nenhum valor "preso" (ex.: brake ~3.9A no boot)
+// se manter aplicado.
+unsigned long lastCmdTime = 0;
+const unsigned long cmdTimeout = 250;   // ms sem comando antes de forçar zero
+
 // Monitorização dos contadores de erro do MCP2515 (TEC/REC).
 // Imprime a 1 Hz quando qualquer contador >=96 ou EFLG != 0.
 CanDiagnosticsState canDiag(1000);
@@ -67,6 +73,13 @@ void setup() {
 
     lastHeartbeat = millis(); //inicializa o timer c o time inicial.
 
+    // Estado seguro no arranque: limpa qualquer brake/rpm que tenha ficado de uma
+    // sessão anterior (PCToCAN só envia ao VESC quando recebe comandos por Serial).
+    can.vesc_set_brake_current(0.0f);
+    can.vesc_set_current(0);
+    zeroSent = true;
+    lastCmdTime = millis();
+
     Serial.println("[PCSender]  CAN BUS OK!");
     Serial.println("[PCSender]  Heartbeat enabled @ 1 Hz");
     Serial.println("---------- PCSender.INO ----------");
@@ -85,6 +98,7 @@ void loop() {
         input.trim(); // Remove whitespace/newlines
 
         if (input.startsWith("Dir:")) {
+            lastCmdTime = currentTime;
             // Handle Steering Angle
             String numberPart = input.substring(4); // Skip "Dir:"
             int val = numberPart.toInt();
@@ -101,6 +115,7 @@ void loop() {
              sendDirCan(currentAngle * 5);
             
         } else if (input.startsWith("L2:")) {
+            lastCmdTime = currentTime;
             // Handle BRAKE CURRENT
             float transformed_brake = extractBrakeCurrent(input);
 
@@ -113,6 +128,7 @@ void loop() {
             can.vesc_set_brake_current(transformed_brake);
             
         } else if (input.startsWith("R2:")) {
+            lastCmdTime = currentTime;
             // Handle ACCEL CURRENT
             float transformed_current = extractCurrent(input);
 
@@ -158,6 +174,18 @@ void loop() {
         unsigned char hbBuf[1] = { heartbeatCounter };
         can.can_send(pcsender_heartbeat_msg_instance.CAN_ID, 0, 1, hbBuf);
         heartbeatCounter++;   // wraps 255 -> 0 (uint8_t)
+    }
+
+    // -------------------------------------------------
+    // Watchdog zero — se o PC não enviar comandos há cmdTimeout, "solta" qualquer
+    // brake/accelerador que tenha ficado para trás (volta a zero). Re-armado a
+    // cada timeout para não spammar o bus.
+    // -------------------------------------------------
+    if (currentTime - lastCmdTime > cmdTimeout) {
+        lastCmdTime = currentTime;
+        can.vesc_set_brake_current(0.0f);
+        can.vesc_set_current(0);
+        zeroSent = true;
     }
 
     // -------------------------------------------------
