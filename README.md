@@ -21,12 +21,13 @@ flowchart TB
     n4@{ shape: rect}
     style n3 stroke-width:4px,stroke-dasharray: 0,fill:#C8E6C9
     click n1 "https://github.com/TecnicoFuelCell/autonomous-systems-core"
+    click n2 "https://github.com/TecnicoFuelCell/autonomous-systems-io"
     click n3 "https://github.com/TecnicoFuelCell/autonomous-systems-vehicle"
     click n4 "https://github.com/TecnicoFuelCell/autonomous-systems-simulation"
 
 ```
 
 - **Autonomous core logic:** [autonomous-systems-core](https://github.com/TecnicoFuelCell/autonomous-systems-core)
+- **Data I/O interface:** [autonomous-systems-io](https://github.com/TecnicoFuelCell/autonomous-systems-io)
 - **Vehicle setup (this repo):** [autonomous-systems-vehicle](https://github.com/TecnicoFuelCell/autonomous-systems-vehicle)
 - **Simulation setup:** [autonomous-systems-simulation](https://github.com/TecnicoFuelCell/autonomous-systems-simulation)
-- **Data I/O interface:** planned repository for the shared ROS 2 topics and messages
