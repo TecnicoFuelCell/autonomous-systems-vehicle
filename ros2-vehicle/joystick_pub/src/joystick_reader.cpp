@@ -34,7 +34,7 @@ class JoystickReader : public rclcpp::Node {
 
         void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
             float r2 = (1.0f - msg->axes[5]) / 2.0f;
-            float l2 = (1.0f - msg->axes[2]) / 2.0f;
+            float l2 = (1.0f - msg->axes[4]) / 2.0f;
 
             float left_analog = - msg->axes[0]; // Left stick horizontal
             
