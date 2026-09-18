@@ -10,7 +10,6 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(nmea_msgs REQUIRED)
 
 # Executável do nó
 add_executable(gps_node src/gps_node.cpp)
@@ -25,7 +24,6 @@ ament_target_dependencies(gps_node
   rclcpp
   sensor_msgs
   geometry_msgs
-  nmea_msgs
 )
 
 # Instalar o executável na pasta de binários do pacote
