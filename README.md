@@ -105,6 +105,6 @@ flowchart BT
     n16@{ shape: rect}
     n17@{ shape: rect}
     n18@{ shape: rect}
-    style n12 fill:#E1BEE7,stroke-width:1px,stroke-dasharray: 1
+    style n12 fill:#BDBCCC,stroke-width:1px,stroke-dasharray: 1
 ```
 - **joy_node:** belongs to ROS2 library, not implementation of this project
