@@ -41,9 +41,9 @@
     </node>
 
     <!-- CAMERA -->
-    <!-- <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
         <param from="config/car_params.yaml"/>
-    </node> -->
+    </node>
 
     <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
          across runs (default is "use first GPS fix as origin" -> every
