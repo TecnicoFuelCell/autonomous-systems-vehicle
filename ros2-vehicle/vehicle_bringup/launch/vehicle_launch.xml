@@ -55,8 +55,6 @@
         <param name="origin_longitude" value="-9.300988216666667"/>
         <param name="origin_altitude"  value="0.0"/>
     </node>
-    
-    <node pkg="odom_pub" exec="odom_node" name="odom_node" output="screen"/>
 
 
     <!-- <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/> -->
