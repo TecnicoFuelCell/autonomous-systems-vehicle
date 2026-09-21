@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>vehicle_bringup</name>
+  <version>0.0.1</version>
+  <description>Bringup launches for the vehicle (joystick, UART, sensors, GPS, camera)</description>
+  <maintainer email="user@todo.todo">User</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>joy</exec_depend>
+  <exec_depend>joystick_pub</exec_depend>
+  <exec_depend>uart_reader</exec_depend>
+  <exec_depend>uart_writer</exec_depend>
+  <exec_depend>deadman_pub</exec_depend>
+  <exec_depend>vesc_pub</exec_depend>
+  <exec_depend>dir_pub</exec_depend>
+  <exec_depend>imu_pub</exec_depend>
+  <exec_depend>mag_pub</exec_depend>
+  <exec_depend>gps_pub</exec_depend>
+  <exec_depend>webcam_pub</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
