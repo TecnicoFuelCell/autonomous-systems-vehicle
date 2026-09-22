@@ -34,7 +34,7 @@ class JoystickReader : public rclcpp::Node {
 
         void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
             float r2 = (1.0f - msg->axes[5]) / 2.0f;
-            float l2 = (1.0f - msg->axes[2]) / 2.0f;
+            float l2 = (1.0f - msg->axes[4]) / 2.0f;
 
             float left_analog = - msg->axes[0]; // Left stick horizontal
             
@@ -48,10 +48,10 @@ class JoystickReader : public rclcpp::Node {
             im_speed_msg.header.stamp = msg->header.stamp;
 
             if (mapped_l2 > 0) {
-                im_speed_msg.move = mapped_l2/10;
+                im_speed_msg.move = (mapped_l2 * 50) / 255;
                 im_speed_msg.which = "L2";
             } else {
-                im_speed_msg.move = mapped_r2/10;
+                im_speed_msg.move = (mapped_r2 * 50) / 255;
                 im_speed_msg.which = "R2";
             }
 
