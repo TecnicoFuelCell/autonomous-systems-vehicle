@@ -6,7 +6,8 @@ This file gives AI coding agents enough project context to work in this reposito
 
 - **Team:** [Técnico Fuel Cell](https://github.com/TecnicoFuelCell) (TFC) — **student team** at Instituto Superior Técnico; the autonomy stack is developed by the **Autonomous Systems** group within the team.
 - **Vehicle:** Battery-electric prototype autonomous car (Ackermann-style steering); monocular camera, no lidar.
-- **This repository:** Real-car **vehicle setup** — hardware I/O on the car (CAN firmware + Jetson ROS 2 bridge). It is **not** the autonomy algorithms repo and **not** the simulator.
+- **This repository:** Real-car **vehicle setup** — hardware I/O on the car (CAN firmware + Jetson ROS 2 bridge). It is **not** the autonomy algorithms repo and **not** the simulator stack.
+- **Simulation (elsewhere):** The team uses **Gazebo** for simulation. Code that talks to the simulator (worlds, plugins, virtual sensors/actuators, sim bringup) lives in **autonomous-systems-simulation**, not here.
 
 ### Actuators (two)
 
@@ -25,7 +26,7 @@ Teleop today maps joystick axes to `Dir:` plus `R2:`/`L2:` lines; autonomy uses 
 | [autonomous-systems-core](https://github.com/TecnicoFuelCell/autonomous-systems-core) | Autonomous core logic (SLAM, perception, MPC, etc.) |
 | [autonomous-systems-io](https://github.com/TecnicoFuelCell/autonomous-systems-io) | Shared ROS 2 I/O contract (topics, messages) used by vehicle and simulation |
 | [autonomous-systems-vehicle](https://github.com/TecnicoFuelCell/autonomous-systems-vehicle) | **This repo** — implements the I/O contract on physical sensors and actuators |
-| [autonomous-systems-simulation](https://github.com/TecnicoFuelCell/autonomous-systems-simulation) | Same contract against virtual sensors and actuators (e.g. Gazebo) |
+| [autonomous-systems-simulation](https://github.com/TecnicoFuelCell/autonomous-systems-simulation) | **Gazebo** simulation — ROS 2 code that interacts with the simulator and implements the same I/O contract on virtual sensors and actuators |
 
 Do not implement core logic, simulation drivers, or the shared message package in this repo unless the user explicitly asks for a vehicle-side integration only. If the work belongs elsewhere, **tell the user to open and change the intended repository** instead of patching it here.
 
@@ -93,6 +94,7 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 ### Scope and accuracy
 
 - Do not invent CAN IDs, UART line formats, or ROS topic names; verify in `embedded/`, `uart_reader`, and sibling `autonomous-systems-io` / `car_msgs` as needed.
+- **Do not change CAN IDs** (`embedded/src/canIds.h` or per-sketch definitions) as a shortcut to fix unrelated bugs (timing, parsing, wiring, ROS topics, deadman logic, etc.). IDs are shared across every node on the bus; renumbering breaks firmware, bridges, and any recorded traces. Fix the root cause instead, and only change IDs when the user explicitly requests a coordinated bus-wide update (all affected sketches and decoders updated together).
 - Do not add runbooks (install, launch commands, device paths) to this file; the README and launch files are the human entry points unless the user asks for documentation.
 - Do not implement SLAM, neural detectors, MPC, or Gazebo simulation in this repo.
 - Do not commit secrets (keys, tokens, `.env` with credentials).
@@ -102,14 +104,14 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 If the requested change clearly belongs in another repo, **do not implement it in this workspace** (including edits under `core/`). Instead:
 
 1. **Name the correct repository** (core, io, simulation, or another sibling).
-2. **Explain why** it belongs there (e.g. shared message definitions → **autonomous-systems-io**; SLAM/MPC → **autonomous-systems-core**; Gazebo plugins → **autonomous-systems-simulation**).
+2. **Explain why** it belongs there (e.g. shared message definitions → **autonomous-systems-io**; SLAM/MPC → **autonomous-systems-core**; Gazebo worlds, plugins, or sim I/O → **autonomous-systems-simulation**).
 3. **Advise the user** to make the change in that repository’s clone and follow that repo’s workflow. Only add or change code **here** when it is genuinely vehicle I/O (firmware, UART bridge, Jetson nodes, vehicle bringup/calibration).
 
 Exception: a small vehicle-only adapter (e.g. subscribing to an existing io topic) is fine in this repo when the user explicitly wants vehicle integration.
 
 ### When unsure
 
-- Ask the user before changing the CAN/UART protocol, deadman behavior, or anything that affects on-car safety.
+- Ask the user before changing the CAN/UART protocol, **CAN ID assignments**, deadman behavior, or anything that affects on-car safety.
 - If ownership of a change is unclear, ask which repo should own it before editing.
 
 ## Human-oriented docs
