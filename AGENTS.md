@@ -91,6 +91,24 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 - Comments should be **concise**, **technical**, and **easy for a student** to follow (see **Audience** above): explain non-obvious intent, hardware quirks, or safety behavior — not restate what the code already says.
 - Match existing conventions in the file and package (naming, ROS 2 patterns, Arduino style). Keep diffs minimal unless the task requires broader change.
 
+### ROS 2 topics (internal vs stack-facing)
+
+- Topics that exist **only inside this repo** (UART fan-out, decode pipelines, debug wiring between vehicle nodes) must use the **`/vehicle_internal`** prefix so they are not confused with the shared stack contract (e.g. `/vehicle_internal/serial/vesc`, `/vehicle_internal/serial/dir`). Follow existing names under `uart_reader` and the `*_pub` nodes.
+- Topics intended for **autonomous-systems-io**, core logic, or recording bags should match that contract (e.g. `/vesc_data`, `/dir_data`) — do not publish stack-facing data only on `/vehicle_internal/...` unless you are deliberately adding an internal stage with a separate public publisher.
+
+### Planning before large changes
+
+For **non-trivial work** (multi-file or multi-package changes, new nodes or launch graphs, CAN/UART or topic contract changes, refactors, or anything that affects on-car behavior), **present a short plan in chat and wait for user approval before implementing**.
+
+The plan should:
+
+- **Summarize** scope in a few bullets (what will change, what will not).
+- **Highlight** important or risky items (safety, deadman, actuators, breaking topic/message renames, cross-repo impact).
+- Propose a **minimal** approach when possible.
+- If the work **restructures the repository** (folder renames, moving launch/calibration into packages, renames of top-level trees), the plan must include updating **`AGENTS.md`** and **`README.md`** in the **same change** so agent and human docs stay accurate.
+
+Small, obvious fixes (typos, single-line bugfixes the user already requested) do not require a formal plan unless they touch safety or bus protocol.
+
 ### Scope and accuracy
 
 - Do not invent CAN IDs, UART line formats, or ROS topic names; verify in `embedded/`, `uart_reader`, and sibling `autonomous-systems-io` / `car_msgs` as needed.
@@ -118,3 +136,22 @@ Exception: a small vehicle-only adapter (e.g. subscribing to an existing io topi
 
 - **README.md** — short introduction, stack diagram, and structure for visitors.
 - **Firmware** — `embedded/src/canIds.h` and sketches are the source of truth for on-bus message layout; agents should read them rather than duplicating full tables in docs.
+
+## Maintaining this file
+
+**Humans and agents:** keep `AGENTS.md` in sync when this repository changes in ways that affect how people (or tools) should work here. Update it in the **same pull request / commit series** as the code change — do not leave `main` with a wrong layout or contracts.
+
+Update when any of the following change:
+
+- **Top-level layout** — folder renames, merges, or moves (e.g. bringup or calibration into a ROS package; renaming the onboard ROS tree).
+- **Contracts** — `/vehicle_internal/...` usage, UART line formats, or which topics are stack-facing vs internal-only.
+- **Runtime** — Jetson model, host OS, ROS distro, or Docker execution model.
+- **Stack boundaries** — sibling repo names/roles, Gazebo/sim ownership, or what belongs in **core** / **io** / **simulation**.
+
+Guidelines:
+
+- Prefer describing **roles** (embedded firmware, onboard bridge, bringup) over hard-coding paths; when paths change, update the **Repository layout** table and any path examples, then search this file (and `README.md`) for stale directory names.
+- Do **not** paste full package lists or CAN ID tables here — link to README, launch files, or `canIds.h` instead.
+- After structural edits, quickly verify that sections **Repository layout**, **Software path**, **ROS 2 topics**, and **Onboard runtime** still match the tree.
+
+If you are an agent and you just performed a restructure, include `AGENTS.md` (and `README.md` if diagrams or structure sections are affected) in the same work unless the user explicitly asked to skip documentation.
