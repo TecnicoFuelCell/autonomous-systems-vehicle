@@ -6,7 +6,10 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 
-from commonsense.camera_exposure import apply_exposure_settings
+try:
+    from commonsense.camera_exposure import apply_exposure_settings
+except ModuleNotFoundError:
+    from webcam_pub.camera_exposure import apply_exposure_settings
 
 
 class WebcamPublisher(Node):
