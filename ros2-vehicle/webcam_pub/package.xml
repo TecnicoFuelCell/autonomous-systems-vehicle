@@ -11,6 +11,7 @@
   <depend>sensor_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>sensor_msgs_py</depend>
+  <depend>commonsense</depend>
 
   <exec_depend>python3-opencv</exec_depend>
 
