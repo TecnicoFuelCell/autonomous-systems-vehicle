@@ -48,10 +48,10 @@ class JoystickReader : public rclcpp::Node {
             im_speed_msg.header.stamp = msg->header.stamp;
 
             if (mapped_l2 > 0) {
-                im_speed_msg.move = mapped_l2/10;
+                im_speed_msg.move = (mapped_l2 * 50) / 255;
                 im_speed_msg.which = "L2";
             } else {
-                im_speed_msg.move = mapped_r2/10;
+                im_speed_msg.move = (mapped_r2 * 50) / 255;
                 im_speed_msg.which = "R2";
             }
 
