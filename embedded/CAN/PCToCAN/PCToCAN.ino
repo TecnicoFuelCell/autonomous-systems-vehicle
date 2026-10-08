@@ -36,7 +36,12 @@ short int currentAngle = 0; // Renamed from oldAngle/newAngle for clarity
 unsigned char dirBuf[8] = {0};
 unsigned char currentBuf[8] = {0};
 
-bool zeroSent = false;
+// When the Jetson command is idle (0 A drive or 0 A brake), send 0 A for only a
+// few commands and then stay quiet. Repeating 0 A forever would override any
+// other node commanding the VESC (e.g. PedalToVESC), since the VESC obeys the
+// last command it received. Starts non-zero so the VESC is released after boot.
+const uint8_t IDLE_ZERO_FRAMES = 3;
+uint8_t idleZerosLeft = IDLE_ZERO_FRAMES;
 
 // Heartbeat — sinaliza ao bus que este nó está vivo.
 // PROBLEMA: O PCSender só transmite ao bus quando chegam comandos pelo Serial.
@@ -110,7 +115,12 @@ void loop() {
             }
             Serial.println(transformed_brake);
             
-            can.vesc_set_brake_current(transformed_brake);
+            if (transformed_brake > 0) {
+                can.vesc_set_brake_current(transformed_brake);
+                idleZerosLeft = IDLE_ZERO_FRAMES;
+            } else {
+                releaseVesc();
+            }
             
         } else if (input.startsWith("R2:")) {
             // Handle ACCEL CURRENT
@@ -124,12 +134,11 @@ void loop() {
             Serial.println(transformed_current);
 
             // ID 1002 for Throttle
-            if(transformed_current==0 && zeroSent==false){
-                can.vesc_set_current(0);
-                zeroSent = true;    
-            }else{
+            if (transformed_current > 0) {
                 can.vesc_set_current(transformed_current*4);
-                zeroSent = false;
+                idleZerosLeft = IDLE_ZERO_FRAMES;
+            } else {
+                releaseVesc();
             }
         } 
         // else: Unknown command, ignore safely
@@ -176,6 +185,13 @@ void loop() {
 
 // Removed UARTComAngle because it caused data loss.
 // Logic moved inside loop().
+
+void releaseVesc() {
+    if (idleZerosLeft > 0) {
+        can.vesc_set_current(0);
+        idleZerosLeft--;
+    }
+}
 
 float extractBrakeCurrent(String input) {
     // "L2:" is 3 chars
