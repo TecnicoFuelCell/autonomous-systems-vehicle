@@ -52,6 +52,19 @@ const unsigned long PEDAL_INTERVAL = 20; // lê pedal a cada 20ms (~50Hz)
 // Filtro exponencial (EMA) aplicado ao valor reescalado 0–4095
 #define ALPHA_NUM      1
 #define ALPHA_DEN      5
+
+// Pedal arbitration: the VESC obeys the last current command it receives, so
+// this node only sends current while the pedal is pressed. When released it
+// goes quiet and PCToCAN (joystick/autonomy) can drive the VESC.
+// Thresholds are in filtered pedal units (0-4095); the gap between them is
+// hysteresis so noise near the threshold does not toggle the pedal on/off.
+const uint16_t PEDAL_ACTIVE_ON  = 100;  // ~2.4 % travel (~1.2 A at 50 A max)
+const uint16_t PEDAL_ACTIVE_OFF = 50;   // ~1.2 % travel
+// On release, send 0 A for a few pedal cycles (5 x 20 ms) so the VESC is not
+// left holding the last current if a single CAN frame is lost.
+const uint8_t PEDAL_RELEASE_FRAMES = 5;
+bool    pedalActive       = false;
+uint8_t releaseFramesLeft = 0;
 // ------------------------------------------------------------------------
 
 void printVESCData() {
@@ -183,10 +196,22 @@ void readPedal() {
   );
 
   if (pedalEnabled) {
-    // 5) Mapear 0–4095 para 0–maxPedalCurrent
-    float current = (pedalFiltered / 4095.0f) * maxPedalCurrent;
-    Serial.printf("[Pedal] Vai enviar corrente %.2f A para o VESC (ADC filt=%u)\n", current, pedalFiltered);
-    can.vesc_set_current(current);
+    if (!pedalActive && pedalFiltered >= PEDAL_ACTIVE_ON) {
+      pedalActive = true;
+    } else if (pedalActive && pedalFiltered < PEDAL_ACTIVE_OFF) {
+      pedalActive = false;
+      releaseFramesLeft = PEDAL_RELEASE_FRAMES;
+    }
+
+    if (pedalActive) {
+      // 5) Mapear 0–4095 para 0–maxPedalCurrent
+      float current = (pedalFiltered / 4095.0f) * maxPedalCurrent;
+      Serial.printf("[Pedal] Vai enviar corrente %.2f A para o VESC (ADC filt=%u)\n", current, pedalFiltered);
+      can.vesc_set_current(current);
+    } else if (releaseFramesLeft > 0) {
+      can.vesc_set_current(0.0);
+      releaseFramesLeft--;
+    }
   }
 }
 
