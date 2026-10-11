@@ -13,8 +13,8 @@ manual_calibration_data_out:
 
 joystick_reader:
   ros__parameters:
-    joy_topic: "/joy"
-    output_topic: "/joystick_movement"
+    joy_topic: "/vehicle_internal/joystick/raw"
+    output_topic: "/vehicle_internal/joystick/commands"
 
 gps_publisher:
   ros__parameters:
