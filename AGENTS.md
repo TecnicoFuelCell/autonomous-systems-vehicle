@@ -46,7 +46,7 @@ The `core/` directory is a **git submodule** pointing at autonomous-systems-core
 ## Onboard runtime (ROS 2)
 
 - **Host OS:** Ubuntu **24.04 LTS** on the Jetson Orin.
-- **ROS distribution:** **ROS 2 Jazzy** (target the Jazzy APIs and packages when changing `ros2-vehicle/` or launch files).
+- **ROS distribution:** **ROS 2 Jazzy** (target the Jazzy APIs and packages when changing `ros2-vehicle/` or `vehicle_bringup` launch files).
 - **Execution model:** ROS 2 code from this repo is meant to run **on the car’s Jetson**, inside a **Docker container** that bundles ROS 2 and the project dependencies/libraries. Treat device paths (e.g. `/dev/ttyACM*`, `/dev/video0`) as passed through from the host into the container unless the user says otherwise.
 
 Embedded firmware (`embedded/`) is flashed to ESP32 boards and does **not** run in this container.
@@ -61,17 +61,21 @@ Inside the onboard container, ROS 2 nodes in this repo:
 
 Autonomy logic talks **ROS 2**, not CAN directly.
 
-## Repository layout (roles; folders may be reorganized)
+## Repository layout
 
-| Area | Typical path | Purpose |
-|------|----------------|---------|
-| Embedded firmware | `embedded/` | Arduino sketches for CAN nodes and shared CAN helpers |
-| Onboard ROS bridge | `ros2-vehicle/` | UART, sensor publishers, command writer, camera, GPS, joystick, deadman |
-| Bringup | `launch/` | Launch files for vehicle-side nodes (may move under ROS tree) |
-| Calibration | `calibration/` | Camera, magnetometer, odometry-related calibration (may move) |
-| Parameters | `config/` | Shared YAML params for vehicle nodes |
+Top-level directories (vehicle-owned work; excluding git metadata):
 
-Prefer describing **roles** over assuming permanent folder names.
+| Area | Path | Purpose |
+|------|------|---------|
+| Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
+| Onboard ROS 2 | `ros2-vehicle/` | **Colcon** workspace: one ament package per onboard node (UART bridge, sensor publishers, teleop, command writer, camera, GPS, deadman) plus **`vehicle_bringup`** |
+| Bringup | `ros2-vehicle/vehicle_bringup/launch/` | Vehicle launch graph; primary entry is `vehicle_launch.xml`. There is **no** repo-root `launch/` folder. |
+| Parameters | `config/` | Shared YAML (e.g. `car_params.yaml`) loaded by bringup and individual nodes |
+| Calibration | `calibration/` | Offline calibration scripts and helper launches (camera, magnetometer, odometry); not part of default on-car bringup |
+| Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, stack alignment); do not commit vehicle changes here |
+| CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` on Jazzy, with `core` submodule for message deps) |
+
+Inside `ros2-vehicle/`, package names match their folders (`uart_reader`, `uart_writer`, `joystick_pub`, `vesc_pub`, `dir_pub`, `imu_pub`, `mag_pub`, `deadman_pub`, `gps_pub`, `webcam_pub`, `vehicle_bringup`). Prefer describing **roles** over memorizing folder names; see `vehicle_launch.xml` for which nodes are started together.
 
 ## Agent rules
 
@@ -82,8 +86,20 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 ### Language
 
 - Use **English** in chat with the user.
-- Write **all code in English**: identifiers, string literals meant for logs/docs, commit messages you suggest, and **comments**.
+- Write **all code in English**: identifiers, string literals meant for logs/docs, and **comments**.
 - Do not add Portuguese (or other languages) in new code or comments unless the user explicitly requests it (legacy firmware may contain Portuguese; do not spread it in new changes).
+
+### Commit messages
+
+- Write **all commit messages in English** (subject and body).
+- Use **[Conventional Commits](https://www.conventionalcommits.org/)**: `type(optional scope): short imperative summary` (e.g. `feat(joystick_pub): remap teleop topics under /vehicle_internal`, `fix(uart_writer): clamp steering command`). Common types: `feat`, `fix`, `docs`, `refactor`, `chore`, `ci`, `test`.
+- Keep the subject line concise; add a body when the change needs context (motivation, safety notes, breaking changes). Agents should suggest messages in this format when the user asks for a commit.
+
+### Git workflow
+
+- Do **not** commit or push changes directly to **`main`**. Create a **feature branch** for the work, push that branch, and open a **pull request** to merge into `main`.
+- Agents should create or use a named branch before making code changes when possible, and use a PR (not a direct merge to `main`) unless the user explicitly requests otherwise.
+- **Branch names** must be **English**, short, and readable (use **kebab-case** for the description). Use a **type prefix** aligned with [Conventional Commits](https://www.conventionalcommits.org/): `type/short-description` (e.g. `feat/joystick-internal-topics`, `fix/uart-writer-steering-clamp`, `docs/agents-md-layout`, `refactor/move-vehicle-bringup`, `ci/jazzy-colcon-build`). Same common types as commits: `feat`, `fix`, `docs`, `refactor`, `chore`, `ci`, `test`. Do not use opaque names, personal nicknames, or non-English slugs.
 
 ### Code style and comments
 
@@ -93,7 +109,7 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 
 ### ROS 2 topics (internal vs stack-facing)
 
-- Topics that exist **only inside this repo** (UART fan-out, decode pipelines, debug wiring between vehicle nodes) must use the **`/vehicle_internal`** prefix so they are not confused with the shared stack contract (e.g. `/vehicle_internal/serial/vesc`, `/vehicle_internal/serial/dir`). Follow existing names under `uart_reader` and the `*_pub` nodes.
+- Topics that exist **only inside this repo** (UART fan-out, decode pipelines, teleop wiring, debug between vehicle nodes) must use the **`/vehicle_internal`** prefix so they are not confused with the shared stack contract (e.g. `/vehicle_internal/serial/vesc`, `/vehicle_internal/serial/dir`, `/vehicle_internal/joystick/raw`, `/vehicle_internal/joystick/commands`). Follow existing names under `uart_reader`, `joystick_pub`, and the `*_pub` nodes.
 - Topics intended for **autonomous-systems-io**, core logic, or recording bags should match that contract (e.g. `/vesc_data`, `/dir_data`) — do not publish stack-facing data only on `/vehicle_internal/...` unless you are deliberately adding an internal stage with a separate public publisher.
 
 ### Planning before large changes
