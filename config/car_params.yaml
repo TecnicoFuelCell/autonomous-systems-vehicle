@@ -6,7 +6,7 @@ calibrate_aruco:
 camera_info_node:
   ros__parameters:
     intrinsics_topic: '/my/camera_info'
-    intrinsics_data: 'config/calibration_elgato_new_1280_720.npz'
+    intrinsics_data: 'config/camera_intrinsics.npz'
     extrinsics_topic: '/my/camera_extrinsics'
     extrinsics_data: 'config/camera_extrinsics.yaml'
 
