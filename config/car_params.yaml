@@ -3,14 +3,14 @@ calibrate_aruco:
   ros__parameters:
     camera_extrinsics_path: 'config/camera_extrinsics.yaml'
 
-# -- SENSORS -- #
-manual_calibration_data_out:
+camera_info_node:
   ros__parameters:
     intrinsics_topic: '/my/camera_info'
-    intrinsics_data: 'config/calibration_elgato_new_1280_720.npz' # calibration_elgato_new_1280_720.npz is the new camera
+    intrinsics_data: 'config/calibration_elgato_new_1280_720.npz'
     extrinsics_topic: '/my/camera_extrinsics'
     extrinsics_data: 'config/camera_extrinsics.yaml'
 
+# -- SENSORS -- #
 joystick_reader:
   ros__parameters:
     joy_topic: "/joy"
