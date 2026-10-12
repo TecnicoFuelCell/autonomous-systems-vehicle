@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'webcam_node = webcam_pub.webcam_node:main',
+            'camera_info_node = webcam_pub.camera_info_node:main',
         ],
     },
 )

@@ -1,7 +1,7 @@
 <!-- Launchfile to automatically write the R,t vectors to camera_extrinsics.yaml -->
 
 <launch>
-    <node pkg="perception" exec="manual_calibration_data_out" name="manual_calibration_data_out" output="screen">
+    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
 
@@ -9,7 +9,7 @@
     <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/>
 
     <!-- Camera launch -->
-    <node pkg="commonsense" exec="elgato_pub.py" name="webcam_publisher" output="screen">
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
 
