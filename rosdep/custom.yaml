@@ -1,0 +1,5 @@
+# Keys used in package.xml that are not in the rosdistro rosdep database.
+nlohmann_json:
+  ubuntu:
+    jammy: [nlohmann-json3-dev]
+    noble: [nlohmann-json3-dev]

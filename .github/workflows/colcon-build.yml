@@ -28,6 +28,7 @@ jobs:
       - name: Install package dependencies
         run: |
           sudo rosdep init || true
+          echo "yaml file://${{ github.workspace }}/rosdep/custom.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/99-vehicle-custom.list
           rosdep update
           rosdep install \
             --from-paths ros2-vehicle core/ros2_ws/src/car_msgs \
