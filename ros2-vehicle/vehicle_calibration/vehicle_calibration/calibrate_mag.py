@@ -21,6 +21,7 @@ Press Ctrl+C to stop sampling; calibration will be computed and saved.
 
 import argparse
 import io
+import json
 import sys
 import threading
 import time
@@ -32,8 +33,6 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, MagneticField
-
-from vehicle_calibration.calibration_io import write_magnetometer_calibration
 
 _DEFAULT_MAG_CALIB_PATH = 'calibration/mag_calib.json'
 
@@ -504,8 +503,12 @@ class MagCalibrationNode(Node):
                 "calibrated = soft_iron_matrix @ (raw - hard_iron_offset)"
             ),
         }
-        saved_path = write_magnetometer_calibration(self.output_path, mag_data)
-        self.get_logger().info(f"Wrote calibration to {saved_path}")
+        path = Path(self.output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('w', encoding='utf-8') as handle:
+            json.dump(mag_data, handle, indent=2)
+            handle.write('\n')
+        self.get_logger().info(f"Wrote calibration to {path}")
 
     def publish_plot_png(self, png_bytes: bytes, publish_seconds: float):
         if self.plot_publisher is None:

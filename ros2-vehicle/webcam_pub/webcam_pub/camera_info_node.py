@@ -1,10 +1,28 @@
+import json
+from pathlib import Path
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import CameraInfo
 from car_msgs.msg import CameraExtrinsics
 
-from vehicle_calibration.calibration_io import load_camera_extrinsics, load_camera_intrinsics
+
+def _load_camera_intrinsics(path: str):
+    with Path(path).open(encoding='utf-8') as handle:
+        document = json.load(handle)
+    return (
+        document['camera_matrix'],
+        document['distortion_coefficients'],
+        int(document.get('width', 0)),
+        int(document.get('height', 0)),
+    )
+
+
+def _load_camera_extrinsics(path: str):
+    with Path(path).open(encoding='utf-8') as handle:
+        document = json.load(handle)
+    return document['rotation_matrix'], document['translation']
 
 EXTRINSICS_QOS = QoSProfile(
     depth=1,
@@ -45,7 +63,7 @@ class CameraInfoNode(Node):
         self.translation = None
 
         if self.publish_intrinsics:
-            self.mtx, self.dist, self.width, self.height = load_camera_intrinsics(intrinsics_path)
+            self.mtx, self.dist, self.width, self.height = _load_camera_intrinsics(intrinsics_path)
             self.intrinsics_pub = self.create_publisher(
                 CameraInfo,
                 str(self.get_parameter('intrinsics_topic').value),
@@ -55,7 +73,7 @@ class CameraInfoNode(Node):
             self.get_logger().info(f'Loaded intrinsics from {intrinsics_path}')
 
         if self.publish_extrinsics:
-            rotation, translation = load_camera_extrinsics(extrinsics_path)
+            rotation, translation = _load_camera_extrinsics(extrinsics_path)
             self.rotation_matrix = rotation
             self.translation = translation
             self.extrinsics_pub = self.create_publisher(
@@ -77,17 +95,17 @@ class CameraInfoNode(Node):
         msg.width = int(self.width) if self.width else 1280
         msg.height = int(self.height) if self.height else 720
         msg.k = [
-            float(self.mtx[0, 0]), 0.0, float(self.mtx[0, 2]),
-            0.0, float(self.mtx[1, 1]), float(self.mtx[1, 2]),
+            float(self.mtx[0][0]), 0.0, float(self.mtx[0][2]),
+            0.0, float(self.mtx[1][1]), float(self.mtx[1][2]),
             0.0, 0.0, 1.0,
         ]
         msg.p = [
-            float(self.mtx[0, 0]), 0.0, float(self.mtx[0, 2]), 0.0,
-            0.0, float(self.mtx[1, 1]), float(self.mtx[1, 2]), 0.0,
+            float(self.mtx[0][0]), 0.0, float(self.mtx[0][2]), 0.0,
+            0.0, float(self.mtx[1][1]), float(self.mtx[1][2]), 0.0,
             0.0, 0.0, 1.0, 0.0,
         ]
         msg.distortion_model = 'plumb_bob'
-        msg.d = [float(value) for value in self.dist.reshape(-1)]
+        msg.d = [float(value) for value in self.dist]
         self.intrinsics_pub.publish(msg)
 
     def publish_extrinsics_msg(self):

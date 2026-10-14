@@ -21,8 +21,6 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 from sensor_msgs.msg import Image
 
-from vehicle_calibration.calibration_io import write_camera_intrinsics
-
 # Fallback when the node is started without launch params (overridden by vehicle_params.yaml).
 _DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
 from vehicle_calibration.device_id import probe_v4l2_device_id
@@ -93,16 +91,22 @@ def solve_and_save_calibration(
         None,
         None,
     )
-    saved_path = write_camera_intrinsics(
-        output_path,
-        mtx,
-        dist,
-        width,
-        height,
-        device_id=device_id,
-    )
+    output_path = Path(output_path)
+    document = {
+        'distortion_model': 'plumb_bob',
+        'camera_matrix': np.asarray(mtx, dtype=np.float64).reshape(3, 3).tolist(),
+        'distortion_coefficients': np.asarray(dist, dtype=np.float64).reshape(-1).tolist(),
+        'width': int(width),
+        'height': int(height),
+    }
+    if device_id:
+        document['device_id'] = device_id
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open('w', encoding='utf-8') as handle:
+        json.dump(document, handle, indent=2)
+        handle.write('\n')
     summary = (
-        f'Saved calibration to {saved_path}\n'
+        f'Saved calibration to {output_path}\n'
         f'Reprojection success: {ret}\n'
         f'Camera matrix:\n{mtx}\n'
         f'Distortion coefficients:\n{dist}'

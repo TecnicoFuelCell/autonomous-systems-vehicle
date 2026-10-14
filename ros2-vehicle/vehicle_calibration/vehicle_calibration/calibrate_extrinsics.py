@@ -1,11 +1,12 @@
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+import json
+from pathlib import Path
+
 import cv2
 import numpy as np
-
-from vehicle_calibration.calibration_io import load_camera_intrinsics, write_camera_extrinsics
+import rclpy
+from cv_bridge import CvBridge
+from rclpy.node import Node
+from sensor_msgs.msg import Image
 
 _DEFAULT_EXTRINSICS_PATH = 'calibration/camera_extrinsics.json'
 _DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
@@ -21,9 +22,16 @@ class ExtrinsicCalibrator(Node):
 
         intrinsics_path = str(self.get_parameter('intrinsics_path').value).strip()
         try:
-            self.camera_matrix, self.dist_coeffs, width, height = load_camera_intrinsics(
-                intrinsics_path,
-            )
+            with Path(intrinsics_path).open(encoding='utf-8') as handle:
+                intrinsics_doc = json.load(handle)
+            self.camera_matrix = np.array(
+                intrinsics_doc['camera_matrix'], dtype=np.float64,
+            ).reshape(3, 3)
+            self.dist_coeffs = np.array(
+                intrinsics_doc['distortion_coefficients'], dtype=np.float64,
+            ).reshape(-1)
+            width = int(intrinsics_doc.get('width', 0))
+            height = int(intrinsics_doc.get('height', 0))
         except (OSError, ValueError, KeyError) as exc:
             raise RuntimeError(
                 f'Failed to load camera intrinsics from {intrinsics_path}: {exc}',
@@ -82,8 +90,16 @@ class ExtrinsicCalibrator(Node):
             self.get_logger().info('No output_path configured. Skipping extrinsics file write.')
             return
 
-        saved_path = write_camera_extrinsics(output_path, rmat, tvec)
-        self.get_logger().info(f'Wrote extrinsics to: {saved_path}')
+        path = Path(output_path)
+        document = {
+            'rotation_matrix': np.asarray(rmat, dtype=np.float64).reshape(-1).tolist(),
+            'translation': np.asarray(tvec, dtype=np.float64).reshape(-1).tolist(),
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('w', encoding='utf-8') as handle:
+            json.dump(document, handle, indent=2)
+            handle.write('\n')
+        self.get_logger().info(f'Wrote extrinsics to: {path}')
 
     def setup_aruco_backend(self):
         if hasattr(cv2.aruco, 'DetectorParameters') and hasattr(cv2.aruco, 'ArucoDetector'):
