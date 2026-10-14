@@ -19,10 +19,11 @@
   PRE-REQUISITOS:
     - deploy_joystick com o patch da flag (apply_mag_calib / mag_calib_path).
     - calibrate_mag registado no setup.py do vehicle_calibration
-    - mag_pub carrega calibration/mag_calib.json (ver mag_calib_path em car_params.yaml).
+    - mag_pub carrega calibration/mag_calib.json (ver mag_calib_path em vehicle_params.yaml).
 -->
 
 <launch>
+    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <!-- caminho do JSON de saida; tem de ser o mesmo que mag_pub le (mag_calib_path). -->
     <arg name="calib_path" default="calibration/mag_calib.json"/>
 
@@ -36,7 +37,7 @@
     </node>
 
     <node pkg="commonsense" exec="mag_compass.py" name="mag_compass" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
 
     <!-- 2. no de calibracao: ouve /mag_data, grava o JSON no Ctrl+C.

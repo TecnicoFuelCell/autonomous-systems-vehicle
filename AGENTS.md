@@ -69,7 +69,7 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 |------|------|---------|
 | Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
 | ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph; no repo-root `launch/`), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
-| Runtime parameters | `config/` | Tracked **`car_params.yaml`** for **vehicle I/O and calibration only** (not perception/MPC/SLAM; those stay in **autonomous-systems-core** `ros2_ws/config/`) |
+| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O and calibration node params (installed with `vehicle_bringup`). Core stack uses **`car_params.yaml`** in **autonomous-systems-core** `ros2_ws/config/` |
 | Calibration outputs | `calibration/` | **Gitignored** JSON (and legacy NPZ/YAML) written by calibrators; directory may not exist until the first run on the car. Odom model JSON from **autonomous-systems-core** `calibrate_odom_model` uses the same default folder when run from the vehicle workspace |
 | Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, full stack tree for local builds); do not commit vehicle changes here |
 | CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` on Jazzy, with `core` submodule for message deps) |

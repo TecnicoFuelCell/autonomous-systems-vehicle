@@ -1,7 +1,6 @@
 # Vehicle I/O and calibration (autonomy stack params live in autonomous-systems-core).
 
-# -- CALIBRATION (artifact paths under calibration/; not in git) --
-# Camera device_path anchor (&camera_device_path) must be defined before aliases.
+# Sensor nodes parameters
 webcam_publisher:
   ros__parameters:
     device_path: &camera_device_path "/dev/video0"
@@ -12,7 +11,7 @@ webcam_publisher:
     camera_fps: 30.0
     pixel_format: "MJPG"
     configure_exposure: true
-    exposure_absolute: 3 # 50 for inside shell paddock
+    exposure_absolute: 3
     exposure_auto: 1
     exposure_fail_fast: false
 
@@ -25,7 +24,6 @@ camera_info_node:
     publish_intrinsics: true
     publish_extrinsics: true
 
-# -- ON-CAR NODES (vehicle_launch.xml) --
 joystick_reader:
   ros__parameters:
     joy_topic: "/joy"
@@ -48,7 +46,16 @@ gps_node:
     origin_altitude: 0.0
     synthetic_mode: false
 
-# Calibration parameters
+# Utility nodes parameters
+uart_node:
+  ros__parameters:
+    serial_port: "/dev/ttyACM0" # CANToPC (sensor UART read)
+
+uart_writer:
+  ros__parameters:
+    serial_port: "/dev/ttyACM1" # PCToCAN (command UART write)
+
+# Calibration nodes parameters
 calibrate_extrinsics:
   ros__parameters:
     output_path: 'calibration/camera_extrinsics.json'

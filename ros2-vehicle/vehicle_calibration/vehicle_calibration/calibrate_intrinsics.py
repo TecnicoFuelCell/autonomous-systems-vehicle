@@ -23,7 +23,7 @@ from sensor_msgs.msg import Image
 
 from vehicle_calibration.calibration_io import write_camera_intrinsics
 
-# Fallback when the node is started without launch params (overridden by car_params.yaml).
+# Fallback when the node is started without launch params (overridden by vehicle_params.yaml).
 _DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
 from vehicle_calibration.device_id import probe_v4l2_device_id
 

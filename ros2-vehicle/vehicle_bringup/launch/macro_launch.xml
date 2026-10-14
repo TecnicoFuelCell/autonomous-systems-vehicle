@@ -1,24 +1,25 @@
  <!-- Launch for full real time pipeline on car-->
 
 <launch>
+    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
     <node pkg="perception" exec="undistort_image" name="undistort_image" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
 
     <!-- YOLO -->
     <node pkg="perception" exec="detection_model" name="detection_model" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>   
     <node pkg="graph_slam_cpp" exec="ground_plane_homography" name="lane_lines_homography" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
 
     <!-- FASTSAM -->
     <!--node pkg="perception" exec="fastSAM_N" name="fastSAM_N" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node-->
 
 
@@ -43,7 +44,7 @@
     </node>
 
     <node pkg="commonsense" exec="joystick_reader" name="joystick_reader" output="screen" > 
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
 
     <!-- TODO: check this but launching actuators twice looks like a big no no-->
@@ -54,7 +55,7 @@
     
     <!-- CAMERA -->
     <node pkg="commonsense" exec="elgato_pub.py" name="webcam_publisher" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>
 
     <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
@@ -69,7 +70,7 @@
     </node>
     
     <!--<node pkg="mpc_controller" exec="mpc" name="mpc" output="screen">
-        <param from="config/car_params.yaml"/>
+        <param from="$(var vehicle_params)"/>
     </node>-->
 
 

@@ -15,7 +15,7 @@ class JoystickReader : public rclcpp::Node {
 
     public:
         JoystickReader(): Node("joystick_reader") {
-            // Declare parameters (with defaults) if you want to change this, change in car_params.yaml
+            // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
             joy_topic_ = this->declare_parameter<std::string>("joy_topic", "/joy");
             output_topic_ = this->declare_parameter<std::string>("output_topic", "/joystick_movement");
 
