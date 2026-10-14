@@ -40,7 +40,10 @@
         <param from="config/car_params.yaml"/>
     </node>
 
-    <!-- CAMERA -->
+    <!-- Camera -->
+    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
     <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
@@ -56,11 +59,4 @@
         <param from="config/car_params.yaml"/>
     </node>
 
-
-    <!-- <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/sim/debug_slam.rviz" output="screen"/> -->
-
-    <!-- <node pkg="commonsense" exec="replicate_msg" name="replicate_msg" output="screen" /> -->
-    <!-- <node pkg="commonsense" exec="zed_pose" name="zed_pose_publisher" output="screen"> -->
-        <!-- <param from="$(find-pkg-share commonsense)/config/zed_params.yaml"/> -->
-    <!-- </node> -->
 </launch>
