@@ -1,0 +1,11 @@
+<!-- Launch intrinsic calibration; writes calibration/camera_intrinsics.json (see car_params.yaml). -->
+
+<launch>
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <node pkg="vehicle_calibration" exec="calibrate_intrinsics" name="calibrate_intrinsics" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+</launch>

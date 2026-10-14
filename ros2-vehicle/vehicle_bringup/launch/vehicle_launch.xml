@@ -44,16 +44,16 @@
     <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
+    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
 
     <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
          across runs (default is "use first GPS fix as origin" -> every
          recording ends up in its own local frame and the prior map only lines
          up by accident). Values match prior_map.json gps_ref. -->
     <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
-        <param name="use_first_fix_as_origin" value="false"/>
-        <param name="origin_latitude"  value="38.7366804"/>
-        <param name="origin_longitude" value="-9.300988216666667"/>
-        <param name="origin_altitude"  value="0.0"/>
+        <param from="config/car_params.yaml"/>
     </node>
 
 

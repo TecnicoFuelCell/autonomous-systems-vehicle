@@ -1,33 +1,45 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-from pathlib import Path
+
+from vehicle_calibration.calibration_io import load_camera_intrinsics, write_camera_extrinsics
+
+_DEFAULT_EXTRINSICS_PATH = 'calibration/camera_extrinsics.json'
+_DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
+
 
 class ExtrinsicCalibrator(Node):
     def __init__(self):
-        super().__init__('extrinsic_calibrator')
+        super().__init__('calibrate_extrinsics')
+        self.declare_parameter('output_path', _DEFAULT_EXTRINSICS_PATH)
         self.declare_parameter('camera_extrinsics_path', '')
-        
-        # Create subscribers
+        self.declare_parameter('intrinsics_path', _DEFAULT_INTRINSICS_PATH)
+        self.last_reprojection_error = None
+
+        intrinsics_path = str(self.get_parameter('intrinsics_path').value).strip()
+        try:
+            self.camera_matrix, self.dist_coeffs, width, height = load_camera_intrinsics(
+                intrinsics_path,
+            )
+        except (OSError, ValueError, KeyError) as exc:
+            raise RuntimeError(
+                f'Failed to load camera intrinsics from {intrinsics_path}: {exc}',
+            ) from exc
+        self.get_logger().info(
+            f'Loaded intrinsics from {intrinsics_path} '
+            f'({width}x{height if height else "?"})',
+        )
+
         self.image_sub = self.create_subscription(
             Image,
             '/zed/left_camera/image_raw',
             self.image_callback,
             10)
-        
-        self.info_sub = self.create_subscription(
-            CameraInfo,
-            '/my/camera_info',
-            self.info_callback,
-            10)
-        
-        # Initialize variables
+
         self.bridge = CvBridge()
-        self.camera_matrix = None
-        self.dist_coeffs = None
         self.calibration_done = False
         
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_ARUCO_ORIGINAL)
@@ -58,19 +70,20 @@ class ExtrinsicCalibrator(Node):
         cv2.namedWindow('ArUco Detection', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('ArUco Detection', 640, 480)
 
+    def resolve_output_path(self) -> str:
+        legacy = str(self.get_parameter('camera_extrinsics_path').value).strip()
+        if legacy:
+            return legacy
+        return str(self.get_parameter('output_path').value).strip()
+
     def write_extrinsics_file(self, rmat, tvec):
-        camera_extrinsics_path = str(self.get_parameter('camera_extrinsics_path').value).strip()
-        if not camera_extrinsics_path:
-            self.get_logger().info('No camera_extrinsics_path configured. Skipping extrinsics file write.')
+        output_path = self.resolve_output_path()
+        if not output_path:
+            self.get_logger().info('No output_path configured. Skipping extrinsics file write.')
             return
 
-        path = Path(camera_extrinsics_path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        r_str = ', '.join(f"{x:.8f}" for x in rmat.flatten())
-        t_str = ', '.join(f"{x:.8f}" for x in tvec)
-        path.write_text(f"R: [{r_str}]\nt: [{t_str}]\n", encoding='utf-8')
-        self.get_logger().info(f'Wrote extrinsics to: {path}')
+        saved_path = write_camera_extrinsics(output_path, rmat, tvec)
+        self.get_logger().info(f'Wrote extrinsics to: {saved_path}')
 
     def setup_aruco_backend(self):
         if hasattr(cv2.aruco, 'DetectorParameters') and hasattr(cv2.aruco, 'ArucoDetector'):
@@ -105,14 +118,8 @@ class ExtrinsicCalibrator(Node):
             parameters=self.aruco_params,
         )
 
-    def info_callback(self, msg):
-        if self.camera_matrix is None:
-            self.camera_matrix = np.array(msg.k).reshape(3, 3)
-            self.dist_coeffs = np.array(msg.d)
-            self.get_logger().info('Received camera intrinsics')
-
     def image_callback(self, msg):
-        if self.camera_matrix is None or self.calibration_done:
+        if self.calibration_done:
             return
 
         try:
@@ -165,6 +172,7 @@ class ExtrinsicCalibrator(Node):
                         img_points_proj, _ = cv2.projectPoints(obj_points, rvec, tvec, self.camera_matrix, self.dist_coeffs)
                         img_points_proj = img_points_proj.squeeze()
                         reprojection_error = np.sqrt(np.mean(np.sum((img_points - img_points_proj)**2, axis=1)))
+                        self.last_reprojection_error = reprojection_error
                         self.get_logger().info(f'Reprojection error: {reprojection_error:.4f} pixels')
                         for i, pt in enumerate(img_points_proj):
                             cv2.circle(display_image, tuple(pt.astype(int)), 5, (0, 0, 255), -1)

@@ -8,7 +8,9 @@
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
+  <depend>car_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>vehicle_calibration</depend>
   <depend>cv_bridge</depend>
   <depend>sensor_msgs_py</depend>
 

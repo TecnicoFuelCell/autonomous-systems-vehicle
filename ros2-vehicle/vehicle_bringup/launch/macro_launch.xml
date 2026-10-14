@@ -1,7 +1,7 @@
  <!-- Launch for full real time pipeline on car-->
 
 <launch>
-    <node pkg="perception" exec="manual_calibration_data_out" name="manual_calibration_data_out" output="screen">
+    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
         <param from="config/car_params.yaml"/>
     </node>
     <node pkg="perception" exec="undistort_image" name="undistort_image" output="screen">

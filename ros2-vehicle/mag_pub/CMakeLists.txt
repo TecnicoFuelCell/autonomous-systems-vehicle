@@ -9,7 +9,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(yaml-cpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 add_executable(mag_node
   src/mag_node.cpp
@@ -26,7 +26,7 @@ ament_target_dependencies(mag_node
   std_msgs
 )
 
-target_link_libraries(mag_node yaml-cpp)
+target_link_libraries(mag_node nlohmann_json::nlohmann_json)
 
 install(TARGETS mag_node
   DESTINATION lib/${PROJECT_NAME}
