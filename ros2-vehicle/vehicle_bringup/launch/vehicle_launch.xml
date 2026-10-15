@@ -1,7 +1,6 @@
 <!-- launch car with joystick-->
 
 <launch>
-    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
         <param name="dev" value="/dev/input/js0"/>
         <param name="deadzone" value="0.05"/>
@@ -9,26 +8,27 @@
     </node>
     
     <node pkg="joystick_pub" exec="joystick_node" name="joystick_reader" output="screen" > 
-        <param from="$(var vehicle_params)"/>
+        <param from="config/car_params.yaml"/>
     </node>
     
     <!-- UART reader: owns the CANToPC serial device (read-only upstream) and
          republishes each raw sensor line on /serial/* for the decode nodes below. -->
     <node pkg="uart_reader" exec="uart_node" name="uart_node" output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param from="config/car_params.yaml"/>
+        <param name="serial_port" value="/dev/ttyACM0"/>
     </node>
 
     <!-- UART writer: subscribes to /joystick_movement (ImSpeed), gated by
          /deadman/alive, and writes motor/steering commands to the PCSender
          serial device (which translates them into CAN frames for the motors). -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param name="serial_port" value="/dev/ttyACM1"/>
     </node>
 
     <!-- Deadman watchdog: consumes /serial/deadman ALIVE lines from the reader
          and publishes /deadman/alive (disarms when ALIVE goes stale). -->
     <node pkg="deadman_pub" exec="deadman_node" name="deadman_node" output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param from="config/car_params.yaml"/>
     </node>
 
     <!-- Sensor decode nodes: subscribe to raw /serial/* lines from uart_reader
@@ -37,18 +37,26 @@
     <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen"/>
     <node pkg="imu_pub"  exec="imu_node"  name="imu_node"  output="screen"/>
     <node pkg="mag_pub"  exec="mag_node"  name="mag_node"  output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param from="config/car_params.yaml"/>
     </node>
 
-    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
+    <!-- Camera -->
     <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param from="config/car_params.yaml"/>
+    </node>
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+        <param from="config/car_params.yaml"/>
     </node>
 
+    <!-- GPS. Pin local-ENU origin so /gps_pose is in a deterministic frame
+         across runs (default is "use first GPS fix as origin" -> every
+         recording ends up in its own local frame and the prior map only lines
+         up by accident). Values match prior_map.json gps_ref. -->
     <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
-        <param from="$(var vehicle_params)"/>
+        <param name="use_first_fix_as_origin" value="false"/>
+        <param name="origin_latitude"  value="38.7366804"/>
+        <param name="origin_longitude" value="-9.300988216666667"/>
+        <param name="origin_altitude"  value="0.0"/>
     </node>
 
 </launch>

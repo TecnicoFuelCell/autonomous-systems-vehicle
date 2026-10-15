@@ -8,6 +8,8 @@
 #include <array>
 #include <string>
 
+#include <yaml-cpp/yaml.h>
+
 namespace mag_pub {
 
 class MagNode : public rclcpp::Node

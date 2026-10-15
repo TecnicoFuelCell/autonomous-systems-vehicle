@@ -131,7 +131,7 @@ class WebcamPublisher(Node):
         super().destroy_node()
 
     def declare_node_parameters(self):
-        # Declare parameters with defaults; override in vehicle_bringup/config/vehicle_params.yaml
+        # Declare parameters with defaults (If you want to change this, change in car_params.yaml)
         self.declare_parameters(
             namespace='',
             parameters=[

@@ -1,0 +1,21 @@
+<!-- Launchfile to automatically write the R,t vectors to camera_extrinsics.yaml -->
+
+<launch>
+    <!-- RViz node -->
+    <node pkg="rviz2" exec="rviz2" name="rviz2" args="-d resources/debug_slam.rviz" output="screen"/>
+
+    <!-- Camera launch -->
+    <node pkg="commonsense" exec="elgato_pub.py" name="webcam_publisher" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <!-- launch intrinsic calib-->
+    <node pkg="utils" exec="intrinsics_node_recorder" name="intrinsics_node_recorder" output="screen">
+        <param from="config/car_params.yaml"/>
+    </node>
+
+    <executable
+    cmd="ros2 bag record -a" 
+    output="screen"
+    />
+</launch>

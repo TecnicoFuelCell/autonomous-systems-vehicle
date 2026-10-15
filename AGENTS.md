@@ -45,7 +45,7 @@ The `core/` directory is a **git submodule** pointing at autonomous-systems-core
 
 ## Onboard runtime (ROS 2)
 
-- **Host OS:** Ubuntu **24.04 LTS** with GNOME desktop on the Jetson Orin.
+- **Host OS:** Ubuntu **24.04 LTS** on the Jetson Orin.
 - **ROS distribution:** **ROS 2 Jazzy** (target the Jazzy APIs and packages when changing `ros2-vehicle/` or `vehicle_bringup` launch files).
 - **Execution model:** ROS 2 code from this repo is meant to run **on the car’s Jetson**, inside a **Docker container** that bundles ROS 2 and the project dependencies/libraries. Treat device paths (e.g. `/dev/ttyACM*`, `/dev/video0`) as passed through from the host into the container unless the user says otherwise.
 
@@ -68,13 +68,14 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 | Area | Path | Purpose |
 |------|------|---------|
 | Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
-| ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
-| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O and calibration node params (installed with `vehicle_bringup`). Core stack uses **`car_params.yaml`** in **autonomous-systems-core** `ros2_ws/config/` |
-| Calibration outputs | `calibration/` | **Gitignored** JSON (and legacy NPZ/YAML) written by calibrators; directory may not exist until the first run on the car. Odom model JSON from **autonomous-systems-core** `calibrate_odom_model` uses the same default folder when run from the vehicle workspace |
-| Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, full stack tree for local builds); do not commit vehicle changes here |
+| Onboard ROS 2 | `ros2-vehicle/` | **Colcon** workspace: one ament package per onboard node (UART bridge, sensor publishers, teleop, command writer, camera, GPS, deadman) plus **`vehicle_bringup`** |
+| Bringup | `ros2-vehicle/vehicle_bringup/launch/` | Vehicle launch graph; primary entry is `vehicle_launch.xml`. There is **no** repo-root `launch/` folder. |
+| Parameters | `config/` | Shared YAML (e.g. `car_params.yaml`) loaded by bringup and individual nodes |
+| Calibration | `calibration/` | Offline calibration scripts and helper launches (camera, magnetometer, odometry); not part of default on-car bringup |
+| Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, stack alignment); do not commit vehicle changes here |
 | CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` on Jazzy, with `core` submodule for message deps) |
 
-Package folder names under `ros2-vehicle/` match ROS package names. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
+Inside `ros2-vehicle/`, package names match their folders (`uart_reader`, `uart_writer`, `joystick_pub`, `vesc_pub`, `dir_pub`, `imu_pub`, `mag_pub`, `deadman_pub`, `gps_pub`, `webcam_pub`, `vehicle_bringup`). Prefer describing **roles** over memorizing folder names; see `vehicle_launch.xml` for which nodes are started together.
 
 ## Agent rules
 
