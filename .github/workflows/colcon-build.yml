@@ -27,14 +27,17 @@ jobs:
 
       - name: Install package dependencies
         run: |
-          sudo rosdep init || true
-          echo "yaml file://${{ github.workspace }}/rosdep/custom.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/99-vehicle-custom.list
-          rosdep update
-          rosdep install \
-            --from-paths ros2-vehicle core/ros2_ws/src/car_msgs \
-            --ignore-src \
-            --rosdistro jazzy \
-            -y
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            nlohmann-json3-dev \
+            python3-matplotlib \
+            python3-numpy \
+            python3-opencv \
+            python3-tk \
+            ros-jazzy-cv-bridge \
+            ros-jazzy-joy \
+            ros-jazzy-rosbag2-py \
+            ros-jazzy-sensor-msgs-py
 
       - name: colcon build vehicle packages
         shell: bash
