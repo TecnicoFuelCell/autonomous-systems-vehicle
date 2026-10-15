@@ -1,11 +1,14 @@
 #include "mag_pub/mag_node.hpp"
 
 #include <cmath>
+#include <fstream>
 #include <string>
 #include <vector>
 #include <functional>
 #include <exception>
 #include <sstream>
+
+#include <nlohmann/json.hpp>
 
 using namespace std::chrono_literals;
 
@@ -28,6 +31,21 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
     }
     return tokens;
 }
+
+void apply_mag_calibration(
+    const nlohmann::json& data,
+    std::array<double, 3>& mag_offset,
+    std::array<std::array<double, 3>, 3>& mag_matrix)
+{
+    const auto off = data.at("hard_iron_offset");
+    const auto mat = data.at("soft_iron_matrix");
+    for (int i = 0; i < 3; ++i) {
+        mag_offset[i] = off.at(i).get<double>() * 1e-6;
+        for (int j = 0; j < 3; ++j) {
+            mag_matrix[i][j] = mat.at(i).at(j).get<double>();
+        }
+    }
+}
 } // namespace
 
 MagNode::MagNode()
@@ -46,7 +64,7 @@ MagNode::MagNode()
 void MagNode::load_mag_calibration() {
     apply_mag_calib_ = this->declare_parameter<bool>("apply_mag_calib", true);
     const std::string path =
-        this->declare_parameter<std::string>("mag_calib_path", "config/mag_calib.yaml");
+        this->declare_parameter<std::string>("mag_calib_path", "calibration/mag_calib.json");
 
     mag_offset_ = {{0.0, 0.0, 0.0}};
     mag_matrix_ = {{ {{1.0, 0.0, 0.0}}, {{0.0, 1.0, 0.0}}, {{0.0, 0.0, 1.0}} }};
@@ -59,22 +77,17 @@ void MagNode::load_mag_calibration() {
     }
 
     try {
-        const YAML::Node cal = YAML::LoadFile(path)["mag_calibration"];
-        if (!cal) throw std::runtime_error("missing 'mag_calibration' key");
-
-        const YAML::Node off = cal["hard_iron_offset"];
-        const YAML::Node mat = cal["soft_iron_matrix"];
-        for (int i = 0; i < 3; ++i) {
-            // Offsets are stored in microtesla but runtime math is tesla.
-            mag_offset_[i] = off[i].as<double>() * 1e-6;
-            for (int j = 0; j < 3; ++j) {
-                mag_matrix_[i][j] = mat[i][j].as<double>();
-            }
+        std::ifstream input(path);
+        if (!input) {
+            throw std::runtime_error("could not open file");
         }
+        const nlohmann::json document = nlohmann::json::parse(input);
+        apply_mag_calibration(document, mag_offset_, mag_matrix_);
+        const std::string mode =
+            document.contains("mode") ? document["mode"].get<std::string>() : "?";
         RCLCPP_INFO(this->get_logger(),
             "Mag calibration loaded from '%s' (mode=%s).",
-            path.c_str(),
-            cal["mode"] ? cal["mode"].as<std::string>().c_str() : "?");
+            path.c_str(), mode.c_str());
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(),
             "Could not load mag calibration from '%s' (%s). Publishing raw.",

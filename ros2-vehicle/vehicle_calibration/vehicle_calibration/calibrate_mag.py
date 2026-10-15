@@ -5,15 +5,12 @@ Magnetometer calibration node for ROS2 Foxy.
 Subscribes to /mag_data (sensor_msgs/MagneticField, default units: tesla),
 accumulates samples, fits an ellipsoid (3D) or ellipse (2D / planar) to
 estimate hard-iron offset and soft-iron transformation, and writes the
-calibration to a YAML file.
+calibration to a JSON file.
 
 Usage:
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml --debug-window
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml --planar
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml --plot-output /path/to/plot.png
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml --plot-topic /mag/calib_plot
-    ros2 run utils calibrate_magnetometer --output /path/to/calib.yaml --plot-live-period 0.5
+    ros2 run vehicle_calibration calibrate_mag --output calibration/mag_calib.json
+    ros2 run vehicle_calibration calibrate_mag --output calibration/mag_calib.json --debug-window
+    ros2 run vehicle_calibration calibrate_mag --output calibration/mag_calib.json --planar
 
 If --planar is omitted, the node auto-detects nearly-planar sample sets
 (common for ground vehicles doing figure-8s) and falls back to 2D
@@ -24,18 +21,20 @@ Press Ctrl+C to stop sampling; calibration will be computed and saved.
 
 import argparse
 import io
+import json
 import sys
 import threading
 import time
 from pathlib import Path
 
 import numpy as np
-import yaml
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, MagneticField
+
+_DEFAULT_MAG_CALIB_PATH = 'calibration/mag_calib.json'
 
 
 # ---------------------------------------------------------------------------
@@ -441,7 +440,7 @@ class MagCalibrationNode(Node):
 
         mode_str = "planar (2D)" if planar else "auto (3D with planar fallback)"
         self.get_logger().info(
-            f"Listening on /mag_data. Mode: {mode_str}. Output YAML: {self.output_path}"
+            f"Listening on /mag_data. Mode: {mode_str}. Output: {self.output_path}"
         )
         self.get_logger().info(
             f"Interpreting incoming MagneticField values as {input_units}; "
@@ -489,27 +488,27 @@ class MagCalibrationNode(Node):
 
     def save_calibration(self, offset, transform, field_strength,
                          n_samples, mode):
-        data = {
-            "mag_calibration": {
-                "frame_id": "mag",
-                "input_units": self.input_units,
-                "units": "microtesla",
-                "mode": mode,
-                "n_samples": int(n_samples),
-                "expected_field_strength": float(field_strength),
-                "hard_iron_offset": [float(v) for v in offset],
-                "soft_iron_matrix": [
-                    [float(v) for v in row] for row in transform
-                ],
-                "usage": (
-                    "calibrated = soft_iron_matrix @ (raw - hard_iron_offset)"
-                ),
-            }
+        mag_data = {
+            "frame_id": "mag",
+            "input_units": self.input_units,
+            "units": "microtesla",
+            "mode": mode,
+            "n_samples": int(n_samples),
+            "expected_field_strength": float(field_strength),
+            "hard_iron_offset": [float(v) for v in offset],
+            "soft_iron_matrix": [
+                [float(v) for v in row] for row in transform
+            ],
+            "usage": (
+                "calibrated = soft_iron_matrix @ (raw - hard_iron_offset)"
+            ),
         }
-        self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.output_path, "w") as f:
-            yaml.safe_dump(data, f, sort_keys=False, default_flow_style=None)
-        self.get_logger().info(f"Wrote calibration to {self.output_path}")
+        path = Path(self.output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('w', encoding='utf-8') as handle:
+            json.dump(mag_data, handle, indent=2)
+            handle.write('\n')
+        self.get_logger().info(f"Wrote calibration to {path}")
 
     def publish_plot_png(self, png_bytes: bytes, publish_seconds: float):
         if self.plot_publisher is None:
@@ -549,8 +548,8 @@ def parse_args(argv):
     )
     parser.add_argument(
         "--output", "-o",
-        required=True,
-        help="Path to the YAML file where calibration will be written.",
+        default=_DEFAULT_MAG_CALIB_PATH,
+        help="Path to the JSON calibration file.",
     )
     parser.add_argument(
         "--debug-window",

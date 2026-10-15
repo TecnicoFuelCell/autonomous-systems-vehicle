@@ -1,3 +1,102 @@
+# ------------------------------------------------------------------------------
+# autonomous-systems-vehicle — local build outputs, recordings, and secrets only.
+# Tracked: source, launch files, vehicle_params.yaml, embedded firmware.
+# ------------------------------------------------------------------------------
+
+# --- ROS 2 / colcon (any workspace layout) ---
 build/
 install/
 log/
+.colcon/
+
+# --- CMake / C++ (ament_cmake packages under ros2-vehicle/) ---
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# --- Python (ament_python packages, calibration scripts) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# --- Arduino / embedded (arduino-cli / IDE build artifacts) ---
+*.hex
+*.elf
+*.map
+.pio/
+
+# --- Calibration artifacts (generated on the car or bench; not committed) ---
+# Keep vehicle_bringup/config/vehicle_params.yaml tracked; outputs live under calibration/.
+calibration/camera_intrinsics.json
+calibration/camera_extrinsics.json
+calibration/mag_calib.json
+calibration/odom_model.json
+calibration/*.npz
+calibration/mag_calib.yaml
+calibration/camera_extrinsics.yaml
+calibration_data*.npz
+**/calibration_*.npz
+
+# Chessboard / intrinsic capture videos
+video_calibracao*.mp4
+calibration_elgato_video.mp4
+*.mp4
+*.avi
+
+# --- ROS bags & recordings ---
+bags/
+recordings/
+rosbag2*/
+*.db3
+*.mcap
+metadata.yaml
+
+# --- Logs & temp files ---
+*.log
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- IDE / editor (personal settings; share via docs, not repo) ---
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+
+# --- Secrets & credentials ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+**/certs/
