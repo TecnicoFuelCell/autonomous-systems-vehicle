@@ -1,0 +1,12 @@
+<!-- Launch intrinsic calibration; writes calibration/camera_intrinsics.json (see vehicle_params.yaml). -->
+
+<launch>
+    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
+        <param from="$(var vehicle_params)"/>
+    </node>
+
+    <node pkg="vehicle_calibration" exec="calibrate_intrinsics" name="calibrate_intrinsics" output="screen">
+        <param from="$(var vehicle_params)"/>
+    </node>
+</launch>
