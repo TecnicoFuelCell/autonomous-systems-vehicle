@@ -8,16 +8,18 @@ class JoystickReader : public rclcpp::Node {
     * 
     * Description: Retrieves the joystick movement and transforms it in the current ratio to be sent to the controller. R2 means forward, L2 means stop.
     *
-    * Subscribers: /joy -> Joy message
+    * Subscribers: /vehicle_internal/joystick/raw -> Joy message
     *
-    * Publishers: /joystick_movement -> ImSpeed custom message
+    * Publishers: /vehicle_internal/joystick/commands -> ImSpeed custom message
     */ 
 
     public:
         JoystickReader(): Node("joystick_reader") {
-            // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
-            joy_topic_ = this->declare_parameter<std::string>("joy_topic", "/joy");
-            output_topic_ = this->declare_parameter<std::string>("output_topic", "/joystick_movement");
+            // Declare parameters (with defaults) if you want to change this, change in car_params.yaml
+            joy_topic_ = this->declare_parameter<std::string>(
+                "joy_topic", "/vehicle_internal/joystick/raw");
+            output_topic_ = this->declare_parameter<std::string>(
+                "output_topic", "/vehicle_internal/joystick/commands");
 
             RCLCPP_INFO(this->get_logger(), "Check topics:");
             RCLCPP_INFO(this->get_logger(), "  joy_topic: %s", joy_topic_.c_str());
@@ -43,7 +45,7 @@ class JoystickReader : public rclcpp::Node {
             int mapped_left_analog = map_value(left_analog, -1.0, 1.0, -200, 200);
 
             auto im_speed_msg = car_msgs::msg::ImSpeed();
-            // Propagate the source /joy stamp so downstream timing stays
+            // Propagate the source Joy stamp so downstream timing stays
             // consistent in both bag replay and live operation.
             im_speed_msg.header.stamp = msg->header.stamp;
 

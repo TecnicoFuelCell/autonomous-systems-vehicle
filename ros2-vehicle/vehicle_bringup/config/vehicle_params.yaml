@@ -24,10 +24,16 @@ camera_info_node:
     publish_intrinsics: true
     publish_extrinsics: true
 
+joy_node:
+  ros__parameters:
+    device_id: 0              # corresponds to /dev/input/js0
+    deadzone: 0.05
+    autorepeat_rate: 20.0
+
 joystick_reader:
   ros__parameters:
-    joy_topic: "/joy"
-    output_topic: "/joystick_movement"
+    joy_topic: "/vehicle_internal/joystick/raw"
+    output_topic: "/vehicle_internal/joystick/commands"
 
 deadman_node:
   ros__parameters:

@@ -3,9 +3,8 @@
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
-        <param name="dev" value="/dev/input/js0"/>
-        <param name="deadzone" value="0.05"/>
-        <param name="autorepeat_rate" value="20.0"/>
+        <remap from="joy" to="/vehicle_internal/joystick/raw"/>
+        <param from="$(var vehicle_params)"/>
     </node>
     
     <node pkg="joystick_pub" exec="joystick_node" name="joystick_reader" output="screen" > 
@@ -18,9 +17,9 @@
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- UART writer: subscribes to /joystick_movement (ImSpeed), gated by
-         /deadman/alive, and writes motor/steering commands to the PCSender
-         serial device (which translates them into CAN frames for the motors). -->
+    <!-- UART writer: subscribes to /vehicle_internal/joystick/commands (ImSpeed)
+         and writes motor/steering commands to the PCSender serial device (which
+         translates them into CAN frames for the motors). -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
         <param from="$(var vehicle_params)"/>
     </node>
