@@ -17,6 +17,7 @@ from config/calibration_params.yaml.
 Outputs:
     mag_calib_path   calibration JSON (always)
     magnetometer_plot_topic  live sample plot while sampling (view with rqt_image_view)
+    show_preview     same live plot in an OpenCV window (needs a display; q stops sampling)
     <mag_calib_path>.png  before/after XY plot, only when save_plot is true
 """
 
@@ -24,6 +25,7 @@ import io
 import json
 from pathlib import Path
 
+import cv2
 import numpy as np
 
 import rclpy
@@ -40,6 +42,7 @@ _DEFAULT_MAG_PLOT_TOPIC = '/vehicle_internal/calibration/magnetometer/plot'
 # sensor_msgs/MagneticField is in tesla; the calibration is stored in microtesla.
 _TESLA_TO_MICROTESLA = 1.0e6
 _LIVE_PLOT_PERIOD_SEC = 1.0
+_PREVIEW_WINDOW = 'Magnetometer Calibration'
 
 # Latched so a viewer started late still receives the latest plot.
 PLOT_QOS = QoSProfile(
@@ -328,6 +331,7 @@ class MagCalibrator(Node):
         self.declare_parameter("planar", True)
         self.declare_parameter("planarity_threshold", 0.01)
         self.declare_parameter("save_plot", False)
+        self.declare_parameter("show_preview", False)
 
         mag_topic = str(self.get_parameter("mag_topic").value)
         self.output_path = Path(
@@ -337,6 +341,7 @@ class MagCalibrator(Node):
         self.planar = bool(self.get_parameter("planar").value)
         self.planarity_threshold = float(self.get_parameter("planarity_threshold").value)
         self.save_plot = bool(self.get_parameter("save_plot").value)
+        self.show_preview = bool(self.get_parameter("show_preview").value)
 
         self._samples = []
         self._last_live_plot_sample_count = 0
@@ -350,7 +355,12 @@ class MagCalibrator(Node):
             self.plot_publisher = self.create_publisher(
                 CompressedImage, plot_topic, PLOT_QOS,
             )
-            self.create_timer(_LIVE_PLOT_PERIOD_SEC, self.publish_live_plot)
+        if self.plot_publisher is not None or self.show_preview:
+            self.create_timer(_LIVE_PLOT_PERIOD_SEC, self.update_live_plot)
+        if self.show_preview:
+            # The plot only changes once per second, but the window must keep
+            # processing events (redraw, q key) in between.
+            self.create_timer(0.05, self.poll_preview_window)
         self.create_timer(2.0, self.log_status)
 
         mode_str = "planar (2D)" if self.planar else "auto (3D with planar fallback)"
@@ -379,7 +389,7 @@ class MagCalibrator(Node):
             return np.empty((0, 3))
         return np.asarray(self._samples, dtype=np.float64)
 
-    def publish_live_plot(self):
+    def update_live_plot(self):
         samples = self.get_samples()
         n_samples = samples.shape[0]
         if n_samples < 2 or n_samples == self._last_live_plot_sample_count:
@@ -387,9 +397,18 @@ class MagCalibrator(Node):
 
         self._last_live_plot_sample_count = n_samples
         try:
-            self.publish_plot_once(render_live_plot_png(samples, "microtesla"))
+            png_bytes = render_live_plot_png(samples, "microtesla")
+            self.publish_plot_once(png_bytes)
+            if self.show_preview:
+                image = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)
+                cv2.imshow(_PREVIEW_WINDOW, image)
         except Exception as e:
-            self.get_logger().warn(f"Could not publish live calibration plot: {e}")
+            self.get_logger().warn(f"Could not update live calibration plot: {e}")
+
+    def poll_preview_window(self):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            self.get_logger().info("Quit requested from preview window.")
+            raise KeyboardInterrupt
 
     def compute_calibration(self, samples: np.ndarray):
         """Return (offset, transform, field_strength, mode); raises on failure."""
@@ -491,6 +510,8 @@ def main(args=None):
         pass
     finally:
         node.get_logger().info("Sampling stopped, computing calibration...")
+        if node.show_preview:
+            cv2.destroyAllWindows()
         try:
             node.finalize()
         finally:

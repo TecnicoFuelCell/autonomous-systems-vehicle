@@ -205,7 +205,7 @@ class TopicCalibrator(Node):
         self.declare_parameter('camera_intrinsics_path', _DEFAULT_INTRINSICS_PATH)
         self.declare_parameter('camera_device_path', '/dev/video0')
         self.declare_parameter('device_id', '')
-        self.declare_parameter('show_preview', True)
+        self.declare_parameter('show_preview', False)
         self.declare_parameter('max_samples', 30)
         self.declare_parameter('min_corner_shift_px', 20.0)
 
@@ -327,7 +327,8 @@ class TopicCalibrator(Node):
     def finalize(self):
         if self.saved:
             return
-        cv2.destroyAllWindows()
+        if self.show_preview:
+            cv2.destroyAllWindows()
         self.saved = self.collector.finalize(
             self.output_path,
             device_id=self.device_id,

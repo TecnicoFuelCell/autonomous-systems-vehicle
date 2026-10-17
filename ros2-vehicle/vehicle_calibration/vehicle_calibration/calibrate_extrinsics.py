@@ -19,6 +19,8 @@ class ExtrinsicCalibrator(Node):
         self.declare_parameter('extrinsics_image_topic', '/vehicle_internal/calibration/extrinsics/image')
         self.declare_parameter('camera_intrinsics_path', _DEFAULT_INTRINSICS_PATH)
         self.declare_parameter('camera_extrinsics_path', _DEFAULT_EXTRINSICS_PATH)
+        self.declare_parameter('show_preview', False)
+        self.show_preview = bool(self.get_parameter('show_preview').value)
         self.last_reprojection_error = None
 
         intrinsics_path = str(self.get_parameter('camera_intrinsics_path').value).strip()
@@ -81,9 +83,10 @@ class ExtrinsicCalibrator(Node):
         self.obj_points[:, 0]*= dist_arucos_right
         self.obj_points[:, 1]*= dist_arucos_up
         self.get_logger().info("Objective points: " + str(self.obj_points))
-        # Initialize OpenCV window
-        cv2.namedWindow('ArUco Detection', cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('ArUco Detection', 640, 480)
+        # Optional OpenCV window (needs a display); extrinsics_image_topic works headless.
+        if self.show_preview:
+            cv2.namedWindow('ArUco Detection', cv2.WINDOW_NORMAL)
+            cv2.resizeWindow('ArUco Detection', 640, 480)
 
     def write_extrinsics_file(self, rmat, tvec):
         output_path = str(self.get_parameter('camera_extrinsics_path').value).strip()
@@ -199,10 +202,11 @@ class ExtrinsicCalibrator(Node):
                 out.header = msg.header
                 self.annotated_pub.publish(out)
 
-            cv2.imshow('ArUco Detection', display_image)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                raise KeyboardInterrupt
+            if self.show_preview:
+                cv2.imshow('ArUco Detection', display_image)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    raise KeyboardInterrupt
 
         except Exception as e:
             self.get_logger().error(f"Error in image_callback: {str(e)}")
@@ -216,7 +220,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     
-    cv2.destroyAllWindows()
+    if node.show_preview:
+        cv2.destroyAllWindows()
     node.destroy_node()
     rclpy.shutdown()
 
