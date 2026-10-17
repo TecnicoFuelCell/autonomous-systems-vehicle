@@ -19,10 +19,6 @@ class JoystickReader : public rclcpp::Node {
             joy_topic_ = this->declare_parameter<std::string>("joy_topic", "/joy");
             movement_topic_ = this->declare_parameter<std::string>("joystick_movement_topic", "/joystick_movement");
 
-            RCLCPP_INFO(this->get_logger(), "Check topics:");
-            RCLCPP_INFO(this->get_logger(), "  joy_topic: %s", joy_topic_.c_str());
-            RCLCPP_INFO(this->get_logger(), "  joystick_movement_topic: %s", movement_topic_.c_str());
-
             publisher_ = this->create_publisher<car_msgs::msg::ImSpeed>(movement_topic_, 10);
             subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>(joy_topic_, 10, std::bind(&JoystickReader::joy_callback, this, std::placeholders::_1));
         }

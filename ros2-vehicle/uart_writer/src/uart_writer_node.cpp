@@ -18,7 +18,7 @@ UartWriterNode::UartWriterNode()
     uart_fd_ = open(serial_port.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
     if (uart_fd_ < 0) {
         RCLCPP_ERROR(this->get_logger(),
-                     "Failed to open UART device for writing to PCSender: %s", serial_port.c_str());
+                     "Failed to open UART device for writing to PCToCAN: %s", serial_port.c_str());
         rclcpp::shutdown();
         return;
     }
@@ -52,7 +52,7 @@ UartWriterNode::UartWriterNode()
         return;
     }
 
-    RCLCPP_INFO(this->get_logger(), "UART port opened for PCSender: %s", serial_port.c_str());
+    RCLCPP_INFO(this->get_logger(), "UART port opened for PCToCAN: %s", serial_port.c_str());
 
     const std::string movement_topic =
         this->declare_parameter<std::string>("joystick_movement_topic", "/joystick_movement");
