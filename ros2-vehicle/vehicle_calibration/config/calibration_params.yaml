@@ -1,0 +1,22 @@
+# Calibration-only topics: same <data>_topic convention as vehicle_params.yaml, defined once here.
+# An empty value disables that output.
+/**:
+  ros__parameters:
+    intrinsics_image_topic: "/vehicle_internal/calibration/intrinsics/image"  # calibrate_intrinsics: annotated chessboard detections
+    extrinsics_image_topic: "/vehicle_internal/calibration/extrinsics/image"  # calibrate_extrinsics: annotated ArUco detections and reprojection
+    magnetometer_plot_topic: "/vehicle_internal/calibration/magnetometer/plot"  # calibrate_magnetometer: live sample plot
+
+calibrate_intrinsics:
+  ros__parameters:
+    rows: 8              # inner chessboard corners per row
+    columns: 5           # inner chessboard corners per column
+    square_size: 0.029   # chessboard square side [m]
+    frame_skip: 20
+    max_samples: 30
+    show_preview: true
+
+calibrate_magnetometer:
+  ros__parameters:
+    planar: true                # ground vehicle: only yaw varies, so fit a 2D ellipse
+    planarity_threshold: 0.01   # auto-fallback to 2D when planar is false and data is flat
+    save_plot: false            # also write a before/after PNG next to mag_calib_path

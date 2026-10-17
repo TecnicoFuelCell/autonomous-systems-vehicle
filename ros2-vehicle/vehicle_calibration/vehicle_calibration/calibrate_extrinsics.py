@@ -15,12 +15,13 @@ _DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
 class ExtrinsicCalibrator(Node):
     def __init__(self):
         super().__init__('calibrate_extrinsics')
-        self.declare_parameter('output_path', _DEFAULT_EXTRINSICS_PATH)
-        self.declare_parameter('camera_extrinsics_path', '')
-        self.declare_parameter('intrinsics_path', _DEFAULT_INTRINSICS_PATH)
+        self.declare_parameter('camera_image_topic', '/zed/left_camera/image_raw')
+        self.declare_parameter('extrinsics_image_topic', '/vehicle_internal/calibration/extrinsics/image')
+        self.declare_parameter('camera_intrinsics_path', _DEFAULT_INTRINSICS_PATH)
+        self.declare_parameter('camera_extrinsics_path', _DEFAULT_EXTRINSICS_PATH)
         self.last_reprojection_error = None
 
-        intrinsics_path = str(self.get_parameter('intrinsics_path').value).strip()
+        intrinsics_path = str(self.get_parameter('camera_intrinsics_path').value).strip()
         try:
             with Path(intrinsics_path).open(encoding='utf-8') as handle:
                 intrinsics_doc = json.load(handle)
@@ -43,12 +44,18 @@ class ExtrinsicCalibrator(Node):
 
         self.image_sub = self.create_subscription(
             Image,
-            '/zed/left_camera/image_raw',
+            str(self.get_parameter('camera_image_topic').value),
             self.image_callback,
             10)
 
         self.bridge = CvBridge()
         self.calibration_done = False
+
+        # Same annotated frames as the 'ArUco Detection' window, for headless runs.
+        annotated_topic = str(self.get_parameter('extrinsics_image_topic').value).strip()
+        self.annotated_pub = (
+            self.create_publisher(Image, annotated_topic, 10) if annotated_topic else None
+        )
         
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_ARUCO_ORIGINAL)
         self.aruco_params = None
@@ -78,16 +85,10 @@ class ExtrinsicCalibrator(Node):
         cv2.namedWindow('ArUco Detection', cv2.WINDOW_NORMAL)
         cv2.resizeWindow('ArUco Detection', 640, 480)
 
-    def resolve_output_path(self) -> str:
-        legacy = str(self.get_parameter('camera_extrinsics_path').value).strip()
-        if legacy:
-            return legacy
-        return str(self.get_parameter('output_path').value).strip()
-
     def write_extrinsics_file(self, rmat, tvec):
-        output_path = self.resolve_output_path()
+        output_path = str(self.get_parameter('camera_extrinsics_path').value).strip()
         if not output_path:
-            self.get_logger().info('No output_path configured. Skipping extrinsics file write.')
+            self.get_logger().info('No camera_extrinsics_path configured. Skipping extrinsics file write.')
             return
 
         path = Path(output_path)
@@ -192,6 +193,11 @@ class ExtrinsicCalibrator(Node):
                         self.get_logger().info(f'Reprojection error: {reprojection_error:.4f} pixels')
                         for i, pt in enumerate(img_points_proj):
                             cv2.circle(display_image, tuple(pt.astype(int)), 5, (0, 0, 255), -1)
+
+            if self.annotated_pub is not None:
+                out = self.bridge.cv2_to_imgmsg(display_image, encoding='bgr8')
+                out.header = msg.header
+                self.annotated_pub.publish(out)
 
             cv2.imshow('ArUco Detection', display_image)
             key = cv2.waitKey(1) & 0xFF

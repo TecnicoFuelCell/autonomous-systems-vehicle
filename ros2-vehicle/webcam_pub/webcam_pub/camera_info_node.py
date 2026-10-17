@@ -35,17 +35,17 @@ class CameraInfoNode(Node):
     def __init__(self):
         super().__init__('camera_info_node')
 
-        self.declare_parameter('intrinsics_path', 'calibration/camera_intrinsics.json')
-        self.declare_parameter('extrinsics_path', 'calibration/camera_extrinsics.json')
-        self.declare_parameter('intrinsics_topic', '/my/camera_info')
-        self.declare_parameter('extrinsics_topic', '/my/camera_extrinsics')
+        self.declare_parameter('camera_intrinsics_path', 'calibration/camera_intrinsics.json')
+        self.declare_parameter('camera_extrinsics_path', 'calibration/camera_extrinsics.json')
+        self.declare_parameter('camera_info_topic', '/my/camera_info')
+        self.declare_parameter('camera_extrinsics_topic', '/my/camera_extrinsics')
         self.declare_parameter('extrinsics_parent_frame', 'base_link')
         self.declare_parameter('publish_intrinsics', True)
         self.declare_parameter('publish_extrinsics', True)
         self.declare_parameter('optical_frame_id', 'zed_left_camera_optical_frame')
 
-        intrinsics_path = str(self.get_parameter('intrinsics_path').value)
-        extrinsics_path = str(self.get_parameter('extrinsics_path').value)
+        intrinsics_path = str(self.get_parameter('camera_intrinsics_path').value)
+        extrinsics_path = str(self.get_parameter('camera_extrinsics_path').value)
         self.publish_intrinsics = bool(self.get_parameter('publish_intrinsics').value)
         self.publish_extrinsics = bool(self.get_parameter('publish_extrinsics').value)
         self.optical_frame_id = str(self.get_parameter('optical_frame_id').value)
@@ -66,7 +66,7 @@ class CameraInfoNode(Node):
             self.mtx, self.dist, self.width, self.height = _load_camera_intrinsics(intrinsics_path)
             self.intrinsics_pub = self.create_publisher(
                 CameraInfo,
-                str(self.get_parameter('intrinsics_topic').value),
+                str(self.get_parameter('camera_info_topic').value),
                 10,
             )
             self.intrinsics_timer = self.create_timer(0.1, self.publish_camera_info)
@@ -78,7 +78,7 @@ class CameraInfoNode(Node):
             self.translation = translation
             self.extrinsics_pub = self.create_publisher(
                 CameraExtrinsics,
-                str(self.get_parameter('extrinsics_topic').value),
+                str(self.get_parameter('camera_extrinsics_topic').value),
                 EXTRINSICS_QOS,
             )
             self.extrinsics_timer = self.create_timer(1.0, self.publish_extrinsics_msg)

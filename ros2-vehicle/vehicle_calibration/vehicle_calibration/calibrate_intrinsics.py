@@ -18,10 +18,12 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.serialization import deserialize_message
+from rclpy.utilities import remove_ros_args
 from rosidl_runtime_py.utilities import get_message
 from sensor_msgs.msg import Image
 
-# Fallback when the node is started without launch params (overridden by vehicle_params.yaml).
+# Fallback when the node is started without launch params (overridden by
+# camera_intrinsics_path in the shared section of vehicle_params.yaml).
 _DEFAULT_INTRINSICS_PATH = 'calibration/camera_intrinsics.json'
 from vehicle_calibration.device_id import probe_v4l2_device_id
 
@@ -193,25 +195,26 @@ class TopicCalibrator(Node):
     def __init__(self):
         super().__init__('topic_calibrator')
 
-        self.declare_parameter('image_topic', '/zed/left_camera/image_raw')
+        self.declare_parameter('camera_image_topic', '/zed/left_camera/image_raw')
+        self.declare_parameter('intrinsics_image_topic', '/vehicle_internal/calibration/intrinsics/image')
         self.declare_parameter('rows', 8)
         self.declare_parameter('columns', 5)
         self.declare_parameter('square_size', 0.0255)
         self.declare_parameter('frame_skip', 20)
         self.declare_parameter('zed_right_half', False)
-        self.declare_parameter('output_path', _DEFAULT_INTRINSICS_PATH)
-        self.declare_parameter('device_path', '/dev/video0')
+        self.declare_parameter('camera_intrinsics_path', _DEFAULT_INTRINSICS_PATH)
+        self.declare_parameter('camera_device_path', '/dev/video0')
         self.declare_parameter('device_id', '')
         self.declare_parameter('show_preview', True)
         self.declare_parameter('max_samples', 30)
         self.declare_parameter('min_corner_shift_px', 20.0)
 
-        self.image_topic = self.get_parameter('image_topic').value
-        self.device_path = str(self.get_parameter('device_path').value)
+        self.image_topic = self.get_parameter('camera_image_topic').value
+        self.device_path = str(self.get_parameter('camera_device_path').value)
         configured_device_id = str(self.get_parameter('device_id').value).strip()
         self.device_id = configured_device_id or probe_v4l2_device_id(self.device_path)
         self.frame_skip = int(self.get_parameter('frame_skip').value)
-        self.output_path = self.get_parameter('output_path').value
+        self.output_path = self.get_parameter('camera_intrinsics_path').value
         self.show_preview = bool(self.get_parameter('show_preview').value)
         self.max_samples = int(self.get_parameter('max_samples').value)
 
@@ -232,6 +235,12 @@ class TopicCalibrator(Node):
         self.saved = False
         self.stop_requested = False
 
+        # Same annotated frames as the preview window, for headless runs.
+        annotated_topic = str(self.get_parameter('intrinsics_image_topic').value).strip()
+        self.annotated_pub = (
+            self.create_publisher(Image, annotated_topic, 10) if annotated_topic else None
+        )
+
         self.subscription = self.create_subscription(
             Image,
             self.image_topic,
@@ -251,6 +260,7 @@ class TopicCalibrator(Node):
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         accepted, frame = self.collector.process_frame(frame)
         self._draw_status(frame, accepted=accepted)
+        self._publish_frame(frame, msg.header)
         self._show_frame(frame)
 
         if self.collector.processed_frames % 20 == 0:
@@ -269,6 +279,13 @@ class TopicCalibrator(Node):
         if elapsed.nanoseconds > int(self.idle_timeout_sec * 1e9):
             self.get_logger().info('No images received recently, stopping...')
             self.stop_requested = True
+
+    def _publish_frame(self, frame, header):
+        if self.annotated_pub is None:
+            return
+        out = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+        out.header = header
+        self.annotated_pub.publish(out)
 
     def _show_frame(self, frame):
         if not self.show_preview:
@@ -734,7 +751,9 @@ def legacy_record_intrinsics_video():
 
 def main():
     """Default: live ROS node when run via ros2 run without subcommands; otherwise CLI."""
-    if len(sys.argv) <= 1:
+    # ros2 launch always appends --ros-args (node name, params file); those are
+    # not CLI subcommands, so ignore them when choosing the mode.
+    if len(remove_ros_args(sys.argv)) <= 1:
         run_ros_node()
         return
     raise SystemExit(main_cli())

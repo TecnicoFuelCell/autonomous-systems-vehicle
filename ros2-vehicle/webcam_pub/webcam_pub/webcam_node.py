@@ -16,9 +16,9 @@ class WebcamPublisher(Node):
         self.param_names = self.declare_node_parameters()
 
         # Get parameters
-        device_path = self.get_parameter('device_path').value
+        device_path = self.get_parameter('camera_device_path').value
         publish_rate = self.get_parameter('publish_rate').value
-        topic_name = self.get_parameter('topic_name').value
+        topic_name = self.get_parameter('camera_image_topic').value
         frame_width = self.get_parameter('frame_width').value
         frame_height = self.get_parameter('frame_height').value
         camera_fps = self.get_parameter('camera_fps').value
@@ -30,8 +30,8 @@ class WebcamPublisher(Node):
         
         # debug log params
         self.get_logger().info(
-            "Resolved parameters:\n" f"  device_path: {device_path}\n" f"  publish_rate: {publish_rate}\n"
-            f"  topic_name: {topic_name}\n" f"  frame_width: {frame_width}\n" f"  frame_height: {frame_height}\n"
+            "Resolved parameters:\n" f"  camera_device_path: {device_path}\n" f"  publish_rate: {publish_rate}\n"
+            f"  camera_image_topic: {topic_name}\n" f"  frame_width: {frame_width}\n" f"  frame_height: {frame_height}\n"
             f"  camera_fps: {camera_fps}\n" f"  pixel_format: {pixel_format}\n"
             f"  configure_exposure: {configure_exposure}\n"
             f"  exposure_absolute: {exposure_absolute}\n" f"  exposure_auto: {exposure_auto}"
@@ -132,13 +132,14 @@ class WebcamPublisher(Node):
 
     def declare_node_parameters(self):
         # Declare parameters with defaults; override in vehicle_bringup/config/vehicle_params.yaml
+        # (camera_device_path and camera_image_topic come from its shared /** section).
         self.declare_parameters(
             namespace='',
             parameters=[
                 # Declare parameters
-                ('device_path', '/dev/video0'),
+                ('camera_device_path', '/dev/video0'),
                 ('publish_rate', 60.0),
-                ('topic_name', '/zed/left_camera/image_raw'),
+                ('camera_image_topic', '/zed/left_camera/image_raw'),
                 ('frame_width', 1280),
                 ('frame_height', 720),
                 ('camera_fps', 60.0),
@@ -150,7 +151,7 @@ class WebcamPublisher(Node):
             ]
         )
 
-        return['device_path', 'publish_rate', 'topic_name', 'frame_width', 'frame_height',
+        return['camera_device_path', 'publish_rate', 'camera_image_topic', 'frame_width', 'frame_height',
                'camera_fps', 'pixel_format', 'configure_exposure', 'exposure_absolute',
                'exposure_auto', 'exposure_fail_fast']
 

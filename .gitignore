@@ -1,6 +1,6 @@
 # ------------------------------------------------------------------------------
 # autonomous-systems-vehicle — local build outputs, recordings, and secrets only.
-# Tracked: source, launch files, vehicle_params.yaml, embedded firmware.
+# Tracked: source, launch files, vehicle_params.yaml, calibration_params.yaml, embedded firmware.
 # ------------------------------------------------------------------------------
 
 # --- ROS 2 / colcon (any workspace layout) ---
@@ -48,7 +48,7 @@ env/
 .pio/
 
 # --- Calibration artifacts (generated on the car or bench; not committed) ---
-# Keep vehicle_bringup/config/vehicle_params.yaml tracked; outputs live under calibration/.
+# Keep the YAML configs under */config/ tracked; outputs live under calibration/.
 calibration/camera_intrinsics.json
 calibration/camera_extrinsics.json
 calibration/mag_calib.json
