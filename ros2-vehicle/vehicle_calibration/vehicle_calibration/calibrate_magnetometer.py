@@ -42,6 +42,9 @@ _DEFAULT_MAG_PLOT_TOPIC = '/vehicle_internal/calibration/magnetometer/plot'
 # sensor_msgs/MagneticField is in tesla; the calibration is stored in microtesla.
 _TESLA_TO_MICROTESLA = 1.0e6
 _LIVE_PLOT_PERIOD_SEC = 1.0
+# Rendering runs in the same thread that receives samples; plotting a bounded
+# subset keeps it fast so incoming readings are not dropped on long runs.
+_LIVE_PLOT_MAX_POINTS = 2000
 _PREVIEW_WINDOW = 'Magnetometer Calibration'
 
 # Latched so a viewer started late still receives the latest plot.
@@ -266,7 +269,7 @@ def _set_equal_2d_limits(ax, first: np.ndarray, second: np.ndarray):
     ax.set_ylim(center[1] - margin, center[1] + margin)
 
 
-def render_live_plot_png(samples: np.ndarray, units: str) -> bytes:
+def render_live_plot_png(samples: np.ndarray, units: str, total_samples: int) -> bytes:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -278,7 +281,10 @@ def render_live_plot_png(samples: np.ndarray, units: str) -> bytes:
     ax_xz = fig.add_subplot(2, 2, 3)
     ax_yz = fig.add_subplot(2, 2, 4)
 
-    fig.suptitle(f"Live magnetometer samples ({samples.shape[0]} points)")
+    fig.suptitle(
+        f"Live magnetometer samples ({total_samples} collected, "
+        f"{samples.shape[0]} shown)"
+    )
 
     ax3d.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=5, alpha=0.75)
     ax3d.set_title("Raw 3D")
@@ -344,6 +350,7 @@ class MagCalibrator(Node):
         self.show_preview = bool(self.get_parameter("show_preview").value)
 
         self._samples = []
+        self._zero_samples_skipped = 0
         self._last_live_plot_sample_count = 0
 
         self.subscription = self.create_subscription(
@@ -375,14 +382,23 @@ class MagCalibrator(Node):
         )
 
     def mag_callback(self, msg: MagneticField):
+        field = msg.magnetic_field
+        # mag_node still publishes all-zero readings when the sensor glitches;
+        # a point at the origin would pull the ellipse fit off.
+        if field.x == 0.0 and field.y == 0.0 and field.z == 0.0:
+            self._zero_samples_skipped += 1
+            return
         self._samples.append([
-            msg.magnetic_field.x * _TESLA_TO_MICROTESLA,
-            msg.magnetic_field.y * _TESLA_TO_MICROTESLA,
-            msg.magnetic_field.z * _TESLA_TO_MICROTESLA,
+            field.x * _TESLA_TO_MICROTESLA,
+            field.y * _TESLA_TO_MICROTESLA,
+            field.z * _TESLA_TO_MICROTESLA,
         ])
 
     def log_status(self):
-        self.get_logger().info(f"Collected {len(self._samples)} samples...")
+        message = f"Collected {len(self._samples)} samples..."
+        if self._zero_samples_skipped:
+            message += f" ({self._zero_samples_skipped} all-zero readings skipped)"
+        self.get_logger().info(message)
 
     def get_samples(self) -> np.ndarray:
         if not self._samples:
@@ -396,8 +412,10 @@ class MagCalibrator(Node):
             return
 
         self._last_live_plot_sample_count = n_samples
+        if n_samples > _LIVE_PLOT_MAX_POINTS:
+            samples = samples[np.linspace(0, n_samples - 1, _LIVE_PLOT_MAX_POINTS).astype(int)]
         try:
-            png_bytes = render_live_plot_png(samples, "microtesla")
+            png_bytes = render_live_plot_png(samples, "microtesla", n_samples)
             self.publish_plot_once(png_bytes)
             if self.show_preview:
                 image = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)

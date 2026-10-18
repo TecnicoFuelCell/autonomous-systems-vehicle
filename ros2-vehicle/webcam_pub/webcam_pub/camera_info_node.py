@@ -104,6 +104,8 @@ class CameraInfoNode(Node):
             0.0, float(self.mtx[1][1]), float(self.mtx[1][2]), 0.0,
             0.0, 0.0, 1.0, 0.0,
         ]
+        # Monocular camera: no rectification, so R is the identity (all zeros is invalid).
+        msg.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         msg.distortion_model = 'plumb_bob'
         msg.d = [float(value) for value in self.dist]
         self.intrinsics_pub.publish(msg)

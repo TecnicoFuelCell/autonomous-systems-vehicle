@@ -18,6 +18,10 @@ calibrate_intrinsics:
 calibrate_extrinsics:
   ros__parameters:
     show_preview: false  # OpenCV window (needs a display); extrinsics_image_topic works headless
+    # Center-to-center spacing of the 3x3 ArUco grid on the ground [m]. Scales
+    # the translation (camera height): measure the real board before calibrating.
+    marker_spacing_x: 0.300  # to the right
+    marker_spacing_y: 0.420  # forward (NOT VERIFIED: original code marked this value as to be fixed)
 
 calibrate_magnetometer:
   ros__parameters:

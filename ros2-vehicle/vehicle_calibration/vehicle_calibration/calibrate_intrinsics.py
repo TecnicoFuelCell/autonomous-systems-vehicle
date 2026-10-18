@@ -15,6 +15,7 @@ import numpy as np
 
 import rclpy
 from cv_bridge import CvBridge
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.serialization import deserialize_message
@@ -109,7 +110,7 @@ def solve_and_save_calibration(
         handle.write('\n')
     summary = (
         f'Saved calibration to {output_path}\n'
-        f'Reprojection success: {ret}\n'
+        f'RMS reprojection error: {ret:.4f} px\n'
         f'Camera matrix:\n{mtx}\n'
         f'Distortion coefficients:\n{dist}'
     )
@@ -180,6 +181,11 @@ class ChessboardSampleCollector:
         log=None,
     ) -> bool:
         if self.gray_size is None:
+            message = 'No frames were processed; nothing to calibrate.'
+            if log:
+                log.error(message)
+            else:
+                print(message)
             return False
         return solve_and_save_calibration(
             self.objpoints,
@@ -226,7 +232,9 @@ class TopicCalibrator(Node):
             zed_right_half=bool(self.get_parameter('zed_right_half').value),
         )
 
-        self.last_image_time = self.get_clock().now()
+        # None until the first frame: the camera may take a while to start, so
+        # the idle timeout only counts gaps after images have started arriving.
+        self.last_image_time = None
         self.idle_timeout_sec = 5.0
         self.idle_timer = self.create_timer(0.5, self.check_idle_timeout)
 
@@ -274,6 +282,11 @@ class TopicCalibrator(Node):
 
     def check_idle_timeout(self):
         if self.stop_requested:
+            return
+        if self.last_image_time is None:
+            self.get_logger().info(
+                f'Waiting for images on {self.image_topic}...', throttle_duration_sec=5.0,
+            )
             return
         elapsed = self.get_clock().now() - self.last_image_time
         if elapsed.nanoseconds > int(self.idle_timeout_sec * 1e9):
@@ -342,7 +355,7 @@ def run_ros_node(args=None):
     try:
         while rclpy.ok() and not node.stop_requested:
             rclpy.spin_once(node, timeout_sec=0.5)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         try:
