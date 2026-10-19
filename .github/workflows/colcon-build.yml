@@ -33,7 +33,6 @@ jobs:
             python3-matplotlib \
             python3-numpy \
             python3-opencv \
-            python3-tk \
             ros-jazzy-cv-bridge \
             ros-jazzy-joy \
             ros-jazzy-rosbag2-py \

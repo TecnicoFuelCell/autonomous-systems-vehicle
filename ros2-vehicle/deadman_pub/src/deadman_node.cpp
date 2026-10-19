@@ -24,14 +24,19 @@ DeadmanNode::DeadmanNode()
 {
     alive_timeout_ = this->declare_parameter<double>("alive_timeout", 0.5);
 
-    alive_pub_ = this->create_publisher<std_msgs::msg::Bool>("/deadman/alive", 1);
+    const std::string deadman_topic =
+        this->declare_parameter<std::string>("deadman_topic", "/deadman/alive");
+    const std::string serial_deadman_topic =
+        this->declare_parameter<std::string>("serial_deadman_topic", "/vehicle_internal/serial/deadman");
 
-    serial_deadman_sub_ = this->create_subscription<std_msgs::msg::String>("/vehicle_internal/serial/deadman", 10,
+    alive_pub_ = this->create_publisher<std_msgs::msg::Bool>(deadman_topic, 1);
+
+    serial_deadman_sub_ = this->create_subscription<std_msgs::msg::String>(serial_deadman_topic, 10,
         std::bind(&DeadmanNode::serial_deadman_callback, this, std::placeholders::_1));
 
     // External re-arm path: a fresh /deadman/alive=true (from another source)
-    // feeds the watchdog just like a serial ALIVE line.
-    deadman_sub_ = this->create_subscription<std_msgs::msg::Bool>("/deadman/alive", 10,
+    // feeds the watchdog just like a serial ALIVE line. Same topic as alive_pub_.
+    deadman_sub_ = this->create_subscription<std_msgs::msg::Bool>(deadman_topic, 10,
         std::bind(&DeadmanNode::deadman_callback, this, std::placeholders::_1));
 
     // Start the deadman stale so the system stays disarmed until a real

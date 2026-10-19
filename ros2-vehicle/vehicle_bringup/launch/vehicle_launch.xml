@@ -32,9 +32,15 @@
 
     <!-- Sensor decode nodes: subscribe to raw /serial/* lines from uart_reader
          and publish the typed topics (names unchanged for downstream consumers). -->
-    <node pkg="vesc_pub" exec="vesc_node" name="vesc_node" output="screen"/>
-    <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen"/>
-    <node pkg="imu_pub"  exec="imu_node"  name="imu_node"  output="screen"/>
+    <node pkg="vesc_pub" exec="vesc_node" name="vesc_node" output="screen">
+        <param from="$(var vehicle_params)"/>
+    </node>
+    <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen">
+        <param from="$(var vehicle_params)"/>
+    </node>
+    <node pkg="imu_pub"  exec="imu_node"  name="imu_node"  output="screen">
+        <param from="$(var vehicle_params)"/>
+    </node>
     <node pkg="mag_pub"  exec="mag_node"  name="mag_node"  output="screen">
         <param from="$(var vehicle_params)"/>
     </node>

@@ -42,11 +42,13 @@ public:
     origin_latitude_deg_ = this->declare_parameter<double>("origin_latitude", 0.0);
     origin_longitude_deg_ = this->declare_parameter<double>("origin_longitude", 0.0);
     origin_altitude_m_ = this->declare_parameter<double>("origin_altitude", 0.0);
+    const std::string fix_topic = this->declare_parameter<std::string>("gps_fix_topic", "/gps/fix");
+    const std::string pose_topic = this->declare_parameter<std::string>("gps_pose_topic", "/gps_pose");
 
     // pubs (TODO: review to just keep 1?)
     // topic with important stuff (latitude, longitude)
-    fix_pub_  = this->create_publisher<sensor_msgs::msg::NavSatFix>("/gps/fix", 10);
-    if (pub_pose_) pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/gps_pose", 10);
+    fix_pub_  = this->create_publisher<sensor_msgs::msg::NavSatFix>(fix_topic, 10);
+    if (pub_pose_) pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(pose_topic, 10);
 
     if (!use_first_fix_as_origin_) {
       setOrigin(origin_latitude_deg_, origin_longitude_deg_, origin_altitude_m_);

@@ -24,11 +24,13 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='Write camera intrinsics JSON from hard-coded matrix values.',
     )
+    # Required on purpose: a default would silently overwrite the real
+    # calibration result at calibration/camera_intrinsics.json.
     parser.add_argument(
         '--output',
         type=str,
-        default=_DEFAULT_INTRINSICS_PATH,
-        help='Output JSON path',
+        required=True,
+        help=f'Output JSON path (the live calibration file is {_DEFAULT_INTRINSICS_PATH})',
     )
     parser.add_argument('--device-id', default='manual_entry')
     parser.add_argument('--width', type=int, default=1280)
