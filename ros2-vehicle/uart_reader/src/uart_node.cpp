@@ -22,12 +22,19 @@ UartNode::UartNode()
     }
 
     // Raw line passthrough topics consumed by the per-sensor decode nodes.
-    vesc_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/vesc", 10);
-    dir_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/dir", 10);
-    acc_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/acc", 10);
-    gyro_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/gyro", 10);
-    mag_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/mag", 10);
-    deadman_pub_ = this->create_publisher<std_msgs::msg::String>("/vehicle_internal/serial/deadman", 10);
+    // Topic names come from the shared /** section of vehicle_params.yaml.
+    vesc_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_vesc_topic", "/vehicle_internal/serial/vesc"), 10);
+    dir_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_dir_topic", "/vehicle_internal/serial/dir"), 10);
+    acc_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_acc_topic", "/vehicle_internal/serial/acc"), 10);
+    gyro_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_gyro_topic", "/vehicle_internal/serial/gyro"), 10);
+    mag_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_mag_topic", "/vehicle_internal/serial/mag"), 10);
+    deadman_pub_ = this->create_publisher<std_msgs::msg::String>(
+        this->declare_parameter<std::string>("serial_deadman_topic", "/vehicle_internal/serial/deadman"), 10);
 
     read_timer_ = this->create_wall_timer(5ms, std::bind(&UartNode::read_uart, this));
 

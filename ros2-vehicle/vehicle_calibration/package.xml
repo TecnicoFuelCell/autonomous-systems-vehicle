@@ -3,7 +3,7 @@
 <package format="3">
   <name>vehicle_calibration</name>
   <version>0.0.0</version>
-  <description>On-vehicle and offline calibration tools (camera, magnetometer, odometry)</description>
+  <description>On-vehicle and offline calibration tools (camera intrinsics/extrinsics, magnetometer)</description>
   <maintainer email="user@todo.todo">user</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,13 +11,16 @@
   <depend>sensor_msgs</depend>
   <depend>cv_bridge</depend>
 
-  <exec_depend>rviz2</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <!-- Calibration launches load vehicle_bringup/config/vehicle_params.yaml and start these nodes. -->
+  <exec_depend>vehicle_bringup</exec_depend>
   <exec_depend>webcam_pub</exec_depend>
+  <exec_depend>uart_reader</exec_depend>
+  <exec_depend>mag_pub</exec_depend>
 
   <exec_depend>python3-matplotlib</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>python3-tk</exec_depend>
   <exec_depend>rosbag2_py</exec_depend>
 
   <test_depend>ament_copyright</test_depend>

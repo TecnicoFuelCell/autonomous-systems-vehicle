@@ -17,13 +17,9 @@ class JoystickReader : public rclcpp::Node {
         JoystickReader(): Node("joystick_reader") {
             // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
             joy_topic_ = this->declare_parameter<std::string>("joy_topic", "/joy");
-            output_topic_ = this->declare_parameter<std::string>("output_topic", "/joystick_movement");
+            movement_topic_ = this->declare_parameter<std::string>("joystick_movement_topic", "/joystick_movement");
 
-            RCLCPP_INFO(this->get_logger(), "Check topics:");
-            RCLCPP_INFO(this->get_logger(), "  joy_topic: %s", joy_topic_.c_str());
-            RCLCPP_INFO(this->get_logger(), "  output_topic: %s", output_topic_.c_str());
-
-            publisher_ = this->create_publisher<car_msgs::msg::ImSpeed>(output_topic_, 10);
+            publisher_ = this->create_publisher<car_msgs::msg::ImSpeed>(movement_topic_, 10);
             subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>(joy_topic_, 10, std::bind(&JoystickReader::joy_callback, this, std::placeholders::_1));
         }
 
@@ -61,7 +57,7 @@ class JoystickReader : public rclcpp::Node {
         }
 
         std::string joy_topic_;
-        std::string output_topic_;
+        std::string movement_topic_;
 
         rclcpp::Publisher<car_msgs::msg::ImSpeed>::SharedPtr publisher_;
         rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscriber_;

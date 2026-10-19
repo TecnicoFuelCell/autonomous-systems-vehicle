@@ -14,6 +14,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.xml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -25,7 +26,7 @@ setup(
         'console_scripts': [
             'calibrate_extrinsics = vehicle_calibration.calibrate_extrinsics:main',
             'calibrate_intrinsics = vehicle_calibration.calibrate_intrinsics:main',
-            'calibrate_mag = vehicle_calibration.calibrate_mag:main',
+            'calibrate_magnetometer = vehicle_calibration.calibrate_magnetometer:main',
             'create_calibration_nparray = vehicle_calibration.create_calibration_nparray:main',
             # Deprecated names (removed in a future release).
             'calibrate_aruco = vehicle_calibration.calibrate_extrinsics:main',
