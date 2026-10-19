@@ -66,6 +66,9 @@ flowchart BT
         n17["CANToPC"]
         n18["ElGato webcam"]
   end
+ subgraph s4["Virtual devices"]
+        n21["virtual_camera"]
+  end
     n7 -- /vehicle_internal/serial/acc <br>/vehicle_internal/serial/gyro --> n4
     n7 -- /vehicle_internal/serial/dir --> n2
     n7 -- /vehicle_internal/serial/deadman --> n1
@@ -88,6 +91,7 @@ flowchart BT
     n1 --> n19
     n2 --> n19
     n4 --> n19
+    n21 --> n14
 
     n2@{ shape: rect}
     n3@{ shape: rect}
@@ -105,6 +109,7 @@ flowchart BT
     n16@{ shape: rect}
     n17@{ shape: rect}
     n18@{ shape: rect}
-    style n12 fill:#BDBCCC,stroke-width:1px,stroke-dasharray: 1
+    style n21 stroke-width:2px,stroke-dasharray: 2
 ```
 - **joy_node:** belongs to ROS2 library, not implementation of this project
+- **virtual_devices:** optional test fixtures that fake device files (e.g. the camera) so nodes can run without hardware; not used on the real car. See [docs/virtual-devices.md](docs/virtual-devices.md)

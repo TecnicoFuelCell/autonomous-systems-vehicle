@@ -1,0 +1,17 @@
+<!-- Virtual camera: streams an image or video file to camera_device_path (a
+     v4l2loopback device) in the mode configured for webcam_publisher, so the
+     camera pipeline can run without the physical camera. Start this first,
+     then launch webcam_node as usual (vehicle_launch.xml, calibration, ...).
+     The device must already exist; it is created on the host with
+     `sudo modprobe v4l2loopback ...` (see docs/virtual-devices.md). -->
+
+<launch>
+    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+    <arg name="input" description="Image or video file to stream"/>
+    <arg name="playback_args" default="" description="Extra options, e.g. '--no-loop --stretch'"/>
+
+    <node pkg="virtual_devices" exec="virtual_camera_node" name="virtual_camera" output="screen"
+          args="$(var input) $(var playback_args)">
+        <param from="$(var vehicle_params)"/>
+    </node>
+</launch>

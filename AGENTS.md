@@ -8,6 +8,7 @@ This file gives AI coding agents enough project context to work in this reposito
 - **Vehicle:** Battery-electric prototype autonomous car (Ackermann-style steering); monocular camera, no lidar.
 - **This repository:** Real-car **vehicle setup** — hardware I/O on the car (CAN firmware + Jetson ROS 2 bridge). It is **not** the autonomy algorithms repo and **not** the simulator stack.
 - **Simulation (elsewhere):** The team uses **Gazebo** for simulation. Code that talks to the simulator (worlds, plugins, virtual sensors/actuators, sim bringup) lives in **autonomous-systems-simulation**, not here.
+- **Virtual devices (here):** Test fixtures that fake a **Linux device file** (`/dev/video*`, `/dev/tty*`, ...) so this repo's own driver nodes run unchanged without the hardware belong in the `virtual_devices` package. Anything that replaces the vehicle layer by publishing stack-facing ROS topics directly is simulation and belongs in **autonomous-systems-simulation**.
 
 ### Actuators (two)
 
@@ -68,10 +69,11 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 | Area | Path | Purpose |
 |------|------|---------|
 | Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
-| ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
-| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 topics** for the naming convention); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`car_params.yaml`** in **autonomous-systems-core** `ros2_ws/config/` |
+| ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows), **`virtual_devices`** (fake Linux devices for running driver nodes without hardware, e.g. `virtual_camera_node` writing to a v4l2loopback camera; `launch/*.launch.xml`) |
+| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 topics** for the naming convention), plus settings several nodes must agree on (e.g. the camera capture mode shared by `webcam_publisher` and `virtual_camera`); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`car_params.yaml`** in **autonomous-systems-core** `ros2_ws/config/` |
 | Calibration parameters | `ros2-vehicle/vehicle_calibration/config/` | **`calibration_params.yaml`** — calibration-only settings (chessboard, fitting, plots). Calibration launches load it together with `vehicle_params.yaml` |
 | Calibration outputs | `calibration/` | **Gitignored** JSON (and legacy NPZ/YAML) written by calibrators; directory may not exist until the first run on the car. Odom model JSON from **autonomous-systems-core** `calibrate_odom_model` uses the same default folder when run from the vehicle workspace |
+| Human docs | `docs/` | Detailed how-to guides (e.g. `virtual-devices.md`), linked from `README.md` |
 | Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, full stack tree for local builds); do not commit vehicle changes here |
 | CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` on Jazzy, with `core` submodule for message deps) |
 
@@ -131,7 +133,7 @@ Small, obvious fixes (typos, single-line bugfixes the user already requested) do
 
 - Do not invent CAN IDs, UART line formats, or ROS topic names; verify in `embedded/`, `uart_reader`, and sibling `autonomous-systems-io` / `car_msgs` as needed.
 - **Do not change CAN IDs** (`embedded/src/canIds.h` or per-sketch definitions) as a shortcut to fix unrelated bugs (timing, parsing, wiring, ROS topics, deadman logic, etc.). IDs are shared across every node on the bus; renumbering breaks firmware, bridges, and any recorded traces. Fix the root cause instead, and only change IDs when the user explicitly requests a coordinated bus-wide update (all affected sketches and decoders updated together).
-- Do not add runbooks (install, launch commands, device paths) to this file; the README and launch files are the human entry points unless the user asks for documentation.
+- Do not add runbooks (install, launch commands, device paths) to this file; the README, `docs/` and launch files are the human entry points unless the user asks for documentation.
 - Do not implement SLAM, neural detectors, MPC, or Gazebo simulation in this repo.
 - Do not commit secrets (keys, tokens, `.env` with credentials).
 
@@ -152,7 +154,7 @@ Exception: a small vehicle-only adapter (e.g. subscribing to an existing io topi
 
 ## Human-oriented docs
 
-- **README.md** — short introduction, stack diagram, and structure for visitors.
+- **README.md** — short introduction, stack diagram, and structure for visitors. Keep it short: put detailed guides (setup steps, commands, troubleshooting) in **`docs/<topic>.md`** and only link them from the README.
 - **Firmware** — `embedded/src/canIds.h` and sketches are the source of truth for on-bus message layout; agents should read them rather than duplicating full tables in docs.
 
 ## Maintaining this file

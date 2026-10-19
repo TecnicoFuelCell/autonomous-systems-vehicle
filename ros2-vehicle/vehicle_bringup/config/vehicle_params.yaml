@@ -4,8 +4,9 @@
 #   <data>_topic  every ROS topic, named after the data it carries (never
 #                 input/output: direction depends on the node reading it)
 #   <thing>_path  files and devices shared between nodes
-# Every topic is defined here exactly once. Do NOT repeat these keys in a node
-# section below. Comments show publisher -> subscribers.
+# Other settings live here only when several nodes must agree on them (e.g.
+# the camera mode). Every topic is defined here exactly once. Do NOT repeat
+# these keys in a node section below. Comments show publisher -> subscribers.
 /**:
   ros__parameters:
     # Raw CANToPC UART lines: uart_node -> decoder nodes (internal)
@@ -30,6 +31,12 @@
     camera_info_topic: "/my/camera_info"              # camera_info_node
     camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
 
+    # Camera capture mode: requested by webcam_publisher, produced by virtual_camera
+    frame_width: 1280
+    frame_height: 720
+    camera_fps: 30.0
+    pixel_format: "MJPG"  # MJPG or YUYV
+
     # Teleop
     joy_topic: "/joy"                              # joy_node -> joystick_reader
     joystick_movement_topic: "/joystick_movement"  # joystick_reader -> uart_writer
@@ -44,10 +51,6 @@
 webcam_publisher:
   ros__parameters:
     publish_rate: 30.0
-    frame_width: 1280
-    frame_height: 720
-    camera_fps: 30.0
-    pixel_format: "MJPG"
     configure_exposure: true
     exposure_absolute: 3
     exposure_auto: 1

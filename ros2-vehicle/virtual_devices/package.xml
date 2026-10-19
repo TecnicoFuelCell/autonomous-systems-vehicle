@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>virtual_devices</name>
+  <version>0.0.0</version>
+  <description>Virtual Linux devices (e.g. v4l2loopback camera) for running vehicle nodes without the hardware</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+
+  <!-- Launches load vehicle_bringup/config/vehicle_params.yaml. -->
+  <exec_depend>vehicle_bringup</exec_depend>
+
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <!-- virtual_camera_node: gst-launch-1.0 (tools), rawvideoparse/videoconvert (base),
+       jpegenc/v4l2sink (good). The v4l2loopback kernel module must be loaded on the host. -->
+  <exec_depend>gstreamer1.0-tools</exec_depend>
+  <exec_depend>gstreamer1.0-plugins-base</exec_depend>
+  <exec_depend>gstreamer1.0-plugins-good</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
