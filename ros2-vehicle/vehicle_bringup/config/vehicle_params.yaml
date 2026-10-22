@@ -36,6 +36,7 @@
 
     # Shared files and devices
     camera_device_path: "/dev/video0"
+    gps_device_path: "/dev/ttyUSB1"
     camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
     camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
     mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
