@@ -31,8 +31,8 @@
     camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
 
     # Teleop
-    joy_topic: "/joy"                              # joy_node -> joystick_reader
-    joystick_movement_topic: "/joystick_movement"  # joystick_reader -> uart_writer
+    joy_topic: "/vehicle_internal/joystick/raw"                    # joy_node -> joystick_reader
+    joystick_movement_topic: "/vehicle_internal/joystick/commands" # joystick_reader -> uart_writer
 
     # Shared files and devices
     camera_device_path: "/dev/video0"
@@ -63,11 +63,6 @@ joy_node:
     device_id: 0              # corresponds to /dev/input/js0
     deadzone: 0.05
     autorepeat_rate: 20.0
-
-joystick_reader:
-  ros__parameters:
-    joy_topic: "/vehicle_internal/joystick/raw"
-    output_topic: "/vehicle_internal/joystick/commands"
 
 deadman_node:
   ros__parameters:

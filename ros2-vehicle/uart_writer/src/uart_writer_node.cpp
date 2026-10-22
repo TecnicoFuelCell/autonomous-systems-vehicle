@@ -55,9 +55,10 @@ UartWriterNode::UartWriterNode()
     RCLCPP_INFO(this->get_logger(), "UART port opened for PCToCAN: %s", serial_port.c_str());
 
     const std::string movement_topic =
-        this->declare_parameter<std::string>("joystick_movement_topic", "/joystick_movement");
+        this->declare_parameter<std::string>(
+            "joystick_movement_topic", "/vehicle_internal/joystick/commands");
     movement_sub_ = this->create_subscription<car_msgs::msg::ImSpeed>(
-        "/vehicle_internal/joystick/commands", 10,
+        movement_topic, 10,
         std::bind(&UartWriterNode::joy_callback, this, std::placeholders::_1));
 
     RCLCPP_INFO(this->get_logger(), "UART Writer Node initialized successfully.");

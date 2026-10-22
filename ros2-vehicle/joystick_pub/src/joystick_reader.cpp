@@ -15,15 +15,11 @@ class JoystickReader : public rclcpp::Node {
 
     public:
         JoystickReader(): Node("joystick_reader") {
-            // Declare parameters (with defaults) if you want to change this, change in car_params.yaml
+            // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
             joy_topic_ = this->declare_parameter<std::string>(
                 "joy_topic", "/vehicle_internal/joystick/raw");
-            output_topic_ = this->declare_parameter<std::string>(
-                "output_topic", "/vehicle_internal/joystick/commands");
-
-            RCLCPP_INFO(this->get_logger(), "Check topics:");
-            RCLCPP_INFO(this->get_logger(), "  joy_topic: %s", joy_topic_.c_str());
-            RCLCPP_INFO(this->get_logger(), "  output_topic: %s", output_topic_.c_str());
+            movement_topic_ = this->declare_parameter<std::string>(
+                "joystick_movement_topic", "/vehicle_internal/joystick/commands");
 
             publisher_ = this->create_publisher<car_msgs::msg::ImSpeed>(movement_topic_, 10);
             subscriber_ = this->create_subscription<sensor_msgs::msg::Joy>(joy_topic_, 10, std::bind(&JoystickReader::joy_callback, this, std::placeholders::_1));
