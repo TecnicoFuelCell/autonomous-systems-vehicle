@@ -66,6 +66,22 @@ UartWriterNode::~UartWriterNode() {
     if (uart_fd_ >= 0) close(uart_fd_);
 }
 
+bool UartWriterNode::ZeroCommandTimer::should_send(
+    int value, std::chrono::steady_clock::time_point now) {
+    if (value != 0) {
+        running = false;
+        return true;
+    }
+
+    if (!running) {
+        started_at = now;
+        running = true;
+    }
+
+    // Repeated zeros keep the original start time until this control becomes nonzero.
+    return now - started_at < std::chrono::seconds(5);
+}
+
 void UartWriterNode::joy_callback(const car_msgs::msg::ImSpeed::SharedPtr msg) {
     int joystick_data = msg->move;
     std::string joystick_side = msg->which;
@@ -73,12 +89,17 @@ void UartWriterNode::joy_callback(const car_msgs::msg::ImSpeed::SharedPtr msg) {
 
     if (std::abs(joystick_steering) > 25) {
         joystick_steering += (joystick_steering < 0) ? 25 : -25;
-        write_serial("Dir: " + std::to_string(joystick_steering));
     } else {
-        write_serial("Dir: 0");
+        joystick_steering = 0;
     }
 
-    write_serial(joystick_side + ": " + std::to_string(joystick_data));
+    const auto now = std::chrono::steady_clock::now();
+    if (steering_zero_timer_.should_send(joystick_steering, now)) {
+        write_serial("Dir: " + std::to_string(joystick_steering));
+    }
+    if (drive_zero_timer_.should_send(joystick_data, now)) {
+        write_serial(joystick_side + ": " + std::to_string(joystick_data));
+    }
 }
 
 void UartWriterNode::write_serial(const std::string& message) {
