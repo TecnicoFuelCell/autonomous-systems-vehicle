@@ -30,6 +30,11 @@ int CurrentStep = 0;
 
 int SendTimer = 0;
 
+const unsigned long DIRECTION_ZERO_TIMEOUT_MS = 5000;
+unsigned long directionZeroStartedAt = 0;
+bool directionZeroTimerRunning = false;
+bool directionZeroSuppressed = false;
+
 CanDiagnosticsState canDiag(1000);
 
 void setup() {
@@ -128,6 +133,28 @@ void rotate(){
 
 byte sendCanCurrentAngle(){
   short int angle2 = (short int) (CurrentStep*360 / (PulsePerRev));
+
+  // Suppress only zero feedback; command reception and motor stepping continue.
+  if (angle2 != 0) {
+    directionZeroTimerRunning = false;
+    directionZeroSuppressed = false;
+  } else {
+    if (directionZeroSuppressed) {
+      return CAN_OK;
+    }
+
+    const unsigned long now = millis();
+    if (!directionZeroTimerRunning) {
+      directionZeroStartedAt = now;
+      directionZeroTimerRunning = true;
+    }
+
+    if (now - directionZeroStartedAt >= DIRECTION_ZERO_TIMEOUT_MS) {
+      directionZeroSuppressed = true;
+      return CAN_OK;
+    }
+  }
+
   CANbuf2[0] = (0>>8) & 0xFF;
   CANbuf2[1] = (0) & 0xFF;
   CANbuf2[2] = (angle2>>8) & 0xFF;

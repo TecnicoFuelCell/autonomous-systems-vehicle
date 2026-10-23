@@ -36,12 +36,11 @@ short int currentAngle = 0; // Renamed from oldAngle/newAngle for clarity
 unsigned char dirBuf[8] = {0};
 unsigned char currentBuf[8] = {0};
 
-// When the Jetson command is idle (0 A drive or 0 A brake), send 0 A for only a
-// few commands and then stay quiet. Repeating 0 A forever would override any
-// other node commanding the VESC (e.g. PedalToVESC), since the VESC obeys the
-// last command it received. Starts non-zero so the VESC is released after boot.
-const uint8_t IDLE_ZERO_FRAMES = 3;
-uint8_t idleZerosLeft = IDLE_ZERO_FRAMES;
+// Release the VESC after five seconds of zero commands so another node can drive it.
+const unsigned long VESC_ZERO_TIMEOUT_MS = 5000;
+unsigned long vescZeroStartedAt = 0;
+bool vescZeroTimerRunning = false;
+bool vescZeroSuppressed = false;
 
 // Heartbeat — sinaliza ao bus que este nó está vivo.
 // PROBLEMA: O PCSender só transmite ao bus quando chegam comandos pelo Serial.
@@ -117,7 +116,8 @@ void loop() {
             
             if (transformed_brake > 0) {
                 can.vesc_set_brake_current(transformed_brake);
-                idleZerosLeft = IDLE_ZERO_FRAMES;
+                vescZeroTimerRunning = false;
+                vescZeroSuppressed = false;
             } else {
                 releaseVesc();
             }
@@ -136,7 +136,8 @@ void loop() {
             // ID 1002 for Throttle
             if (transformed_current > 0) {
                 can.vesc_set_current(transformed_current*4);
-                idleZerosLeft = IDLE_ZERO_FRAMES;
+                vescZeroTimerRunning = false;
+                vescZeroSuppressed = false;
             } else {
                 releaseVesc();
             }
@@ -187,10 +188,22 @@ void loop() {
 // Logic moved inside loop().
 
 void releaseVesc() {
-    if (idleZerosLeft > 0) {
-        can.vesc_set_current(0);
-        idleZerosLeft--;
+    if (vescZeroSuppressed) {
+        return;
     }
+
+    const unsigned long now = millis();
+    if (!vescZeroTimerRunning) {
+        vescZeroStartedAt = now;
+        vescZeroTimerRunning = true;
+    }
+
+    if (now - vescZeroStartedAt >= VESC_ZERO_TIMEOUT_MS) {
+        vescZeroSuppressed = true;
+        return;
+    }
+
+    can.vesc_set_current(0);
 }
 
 float extractBrakeCurrent(String input) {
