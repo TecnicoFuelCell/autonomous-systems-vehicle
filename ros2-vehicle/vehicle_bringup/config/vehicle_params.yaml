@@ -31,11 +31,12 @@
     camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
 
     # Teleop
-    joy_topic: "/joy"                              # joy_node -> joystick_reader
-    joystick_movement_topic: "/joystick_movement"  # joystick_reader -> uart_writer
+    joy_topic: "/vehicle_internal/joystick/raw"                    # joy_node -> joystick_reader
+    joystick_movement_topic: "/vehicle_internal/joystick/commands" # joystick_reader -> uart_writer
 
     # Shared files and devices
     camera_device_path: "/dev/video0"
+    gps_device_path: "/dev/ttyUSB1"
     camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
     camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
     mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
@@ -57,6 +58,12 @@ camera_info_node:
   ros__parameters:
     publish_intrinsics: true
     publish_extrinsics: true
+
+joy_node:
+  ros__parameters:
+    device_id: 0              # corresponds to /dev/input/js0
+    deadzone: 0.05
+    autorepeat_rate: 20.0
 
 deadman_node:
   ros__parameters:
