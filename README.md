@@ -53,6 +53,7 @@ flowchart BT
         n9["webcam_pub"]
         n12["joy_node"]
         n19["Data I/O interface"]
+        n20["Downstream data"]
   end
  subgraph s2["Linux files"]
         n10["/dev/ttyUSB1"]
@@ -76,7 +77,7 @@ flowchart BT
     n7 -- /vehicle_internal/serial/mag --> n6
     n11 --> n12
     n13 --> n7
-    n12 -- /joy --> n5
+    n12 -- /vehicle_internal/joystick/raw --> n5
     n14 --> n9
     n10 --> n3
     n15 -- USB --> n10
@@ -84,7 +85,6 @@ flowchart BT
     n17 -- USB --> n13
     n18 -- USB --> n14
     n3 --> n19
-    n5 --> n19
     n9 --> n19
     n6 --> n19
     n8 --> n19
@@ -92,6 +92,7 @@ flowchart BT
     n2 --> n19
     n4 --> n19
     n21 --> n14
+    n5 -- /vehicle_internal/joystick/commands --> n20
 
     n2@{ shape: rect}
     n3@{ shape: rect}
@@ -102,6 +103,7 @@ flowchart BT
     n8@{ shape: rect}
     n9@{ shape: rect}
     n19@{ shape: rect}
+    n20@{ shape: rect}
     n10@{ shape: rect}
     n11@{ shape: rect}
     n13@{ shape: rect}

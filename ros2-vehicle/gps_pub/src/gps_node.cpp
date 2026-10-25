@@ -31,7 +31,7 @@ class GPSNode : public rclcpp::Node {
 public:
   GPSNode() : Node("gps_node") {
     // params
-    port_     = this->declare_parameter<std::string>("port", "/dev/ttyUSB1");
+    port_     = this->declare_parameter<std::string>("gps_device_path", "/dev/ttyUSB1");
     baudrate_ = this->declare_parameter<int>("baudrate", 115200);
     frame_id_ = this->declare_parameter<std::string>("frame_id", "gps_link");
     pose_frame_id_ = this->declare_parameter<std::string>("pose_frame_id", "gps_local");
