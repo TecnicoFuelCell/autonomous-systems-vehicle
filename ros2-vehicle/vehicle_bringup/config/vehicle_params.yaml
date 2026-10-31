@@ -40,6 +40,54 @@
     camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
     camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
     mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
+# Shared values: applied to every node that loads this file. A node only uses
+# the keys it declares, so the publisher and the subscribers of a topic read
+# the same entry and cannot drift apart. Naming convention:
+#   <data>_topic  every ROS topic, named after the data it carries (never
+#                 input/output: direction depends on the node reading it)
+#   <thing>_path  files and devices shared between nodes
+# Other settings live here only when several nodes must agree on them (e.g.
+# the camera mode). Every topic is defined here exactly once. Do NOT repeat
+# these keys in a node section below. Comments show publisher -> subscribers.
+/**:
+  ros__parameters:
+    # Raw CANToPC UART lines: uart_node -> decoder nodes (internal)
+    serial_vesc_topic: "/vehicle_internal/serial/vesc"        # -> vesc_node
+    serial_dir_topic: "/vehicle_internal/serial/dir"          # -> dir_node
+    serial_acc_topic: "/vehicle_internal/serial/acc"          # -> imu_node
+    serial_gyro_topic: "/vehicle_internal/serial/gyro"        # -> imu_node
+    serial_mag_topic: "/vehicle_internal/serial/mag"          # -> mag_node
+    serial_deadman_topic: "/vehicle_internal/serial/deadman"  # -> deadman_node
+
+    # Decoded sensor data (interface)
+    vesc_topic: "/vesc_data"         # vesc_node
+    dir_topic: "/dir_data"           # dir_node
+    imu_topic: "/imu_data"           # imu_node
+    mag_topic: "/mag_data"           # mag_node
+    gps_fix_topic: "/gps/fix"        # gps_node
+    gps_pose_topic: "/gps_pose"      # gps_node
+    deadman_topic: "/deadman/alive"  # deadman_node (also subscribes, as external re-arm)
+
+    # Camera
+    camera_image_topic: "/zed/left_camera/image_raw"  # webcam_publisher
+    camera_info_topic: "/my/camera_info"              # camera_info_node
+    camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
+
+    # Camera capture mode: requested by webcam_publisher, produced by virtual_camera
+    frame_width: 1280
+    frame_height: 720
+    camera_fps: 30.0
+    pixel_format: "MJPG"  # MJPG or YUYV
+
+    # Teleop
+    joy_topic: "/joy"                              # joy_node -> joystick_reader
+    joystick_movement_topic: "/joystick_movement"  # joystick_reader -> uart_writer
+
+    # Shared files and devices
+    camera_device_path: "/dev/video0"
+    camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
+    camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
+    mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
 
 # Sensor nodes parameters
 webcam_publisher:
