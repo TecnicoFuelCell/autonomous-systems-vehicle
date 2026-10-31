@@ -19,7 +19,6 @@ UartWriterNode::UartWriterNode()
     if (uart_fd_ < 0) {
         RCLCPP_ERROR(this->get_logger(),
                      "Failed to open UART device for writing to PCToCAN: %s", serial_port.c_str());
-                     "Failed to open UART device for writing to PCToCAN: %s", serial_port.c_str());
         rclcpp::shutdown();
         return;
     }
