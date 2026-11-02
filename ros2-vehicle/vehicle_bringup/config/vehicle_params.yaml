@@ -49,10 +49,20 @@ webcam_publisher:
     frame_height: 720
     camera_fps: 30.0
     pixel_format: "MJPG"
+    # Exposure values are in V4L2 units of 100 us (e.g. 3 = 0.3 ms).
     configure_exposure: true
-    exposure_absolute: 3
-    exposure_auto: 1
-    exposure_fail_fast: false
+    exposure_absolute: 3      # fixed value, or starting point of the auto-tune search
+    exposure_auto: 1          # 1 = manual exposure mode (UVC menu value)
+    exposure_fail_fast: false # true: fail configure if exposure controls cannot be written
+    # Auto-tune runs during the lifecycle configure step, before any frame is published.
+    auto_tune_exposure: true
+    exposure_target_brightness: 110.0    # mean gray level, 0-255
+    exposure_brightness_tolerance: 15.0
+    exposure_min: 1
+    exposure_max: 0                      # 0 = one frame period (10000 / camera_fps); lower it to reduce motion blur
+    exposure_max_iterations: 10
+    exposure_settle_frames: 8            # frames dropped after each exposure change
+    exposure_metering_top_fraction: 0.0  # ignore this top fraction of the image (e.g. sky) when metering
 
 camera_info_node:
   ros__parameters:
