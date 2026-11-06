@@ -30,12 +30,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             nlohmann-json3-dev \
+            libusb-1.0-dev \
+            libcurl4-openssl-dev \
             python3-matplotlib \
             python3-numpy \
             python3-opencv \
             ros-jazzy-cv-bridge \
             ros-jazzy-joy \
             ros-jazzy-rosbag2-py \
+            ros-jazzy-rtcm-msgs \
             ros-jazzy-sensor-msgs-py
 
       - name: colcon build vehicle packages

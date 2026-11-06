@@ -1,0 +1,32 @@
+<!-- Sensors bringup: Xsens MTi IMU and u-blox ZED-X20D GNSS heading receiver.
+     Each driver keeps its own launch file; this file only wires them together
+     and exposes the few settings that change between bench and car. -->
+
+<launch>
+    <!-- Xsens MTi series IMU (/sensores/xsens/imu/data by default) -->
+    <arg name="xsens_namespace" default="sensores/xsens"/>
+    <arg name="xsens_port" default="/dev/ttyUSB0"/>
+    <arg name="xsens_baudrate" default="921600"/>
+
+    <!-- u-blox ZED-X20D: RTK position (/fix) and dual-antenna heading
+         (heading/imu). daheading_offset is the clockwise angle, in 0.01 deg,
+         from the antenna-1 -> antenna-2 baseline to the vehicle forward axis
+         (9000 = +90 deg). heading_frame_id empty keeps the driver frame id. -->
+    <arg name="ublox_namespace" default=""/>
+    <arg name="ublox_frame_id" default="ubx"/>
+    <arg name="daheading_offset" default="0"/>
+    <arg name="heading_frame_id" default=""/>
+
+    <include file="$(find-pkg-share bluespace_ai_xsens_mti_driver)/launch/xsens_mti_node.launch.py">
+        <arg name="namespace" value="$(var xsens_namespace)"/>
+        <arg name="port" value="$(var xsens_port)"/>
+        <arg name="baudrate" value="$(var xsens_baudrate)"/>
+    </include>
+
+    <include file="$(find-pkg-share ublox_dgnss)/launch/ublox_x20d_rover_heading.launch.py">
+        <arg name="namespace" value="$(var ublox_namespace)"/>
+        <arg name="frame_id" value="$(var ublox_frame_id)"/>
+        <arg name="daheading_offset" value="$(var daheading_offset)"/>
+        <arg name="heading_frame_id" value="$(var heading_frame_id)"/>
+    </include>
+</launch>
