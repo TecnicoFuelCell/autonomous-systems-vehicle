@@ -2,6 +2,9 @@
 
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+    <!-- The u-blox ZED-X20D started by sensors_launch.xml publishes /gps/fix
+         too, so the legacy NMEA receiver must stay off while it is active. -->
+    <arg name="launch_legacy_gps" default="false"/>
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
         <remap from="joy" to="/vehicle_internal/joystick/raw"/>
         <param from="$(var vehicle_params)"/>
@@ -52,7 +55,8 @@
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
+    <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen"
+          if="$(var launch_legacy_gps)">
         <param from="$(var vehicle_params)"/>
     </node>
 
