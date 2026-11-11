@@ -43,6 +43,6 @@ jobs:
         run: |
           source /opt/ros/jazzy/setup.bash
           colcon build \
-            --base-paths ros2-vehicle core/ros2_ws/src/car_msgs \
+            --base-paths ros2-vehicle core/io/ros2-io/car_msgs \
             --event-handlers console_cohesion+ \
             --cmake-args -DCMAKE_BUILD_TYPE=Release
