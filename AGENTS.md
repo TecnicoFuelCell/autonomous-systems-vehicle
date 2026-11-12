@@ -34,6 +34,8 @@ Do not implement core logic, simulation drivers, or the shared message package i
 
 The `core/` directory is a **git submodule** pointing at autonomous-systems-core. It is included so this workspace can build against shared types (e.g. `car_msgs`) and align with the stack. Treat it as **read-only context** for vehicle work: do not refactor SLAM, YOLO, MPC, or bringup inside `core/` when the task is vehicle setup. Advise the user to clone or work in **autonomous-systems-core** and commit there.
 
+`car_msgs` comes from **autonomous-systems-io**, which core contains as its own submodule at `core/io/` (the messages are in `core/io/ros2-io/car_msgs/`). The vehicle uses the io version that core pins. Clone with `git clone --recurse-submodules`, or run `git submodule update --init --recursive` after a pull. Do not add autonomous-systems-io a second time at the root of this repo: colcon would find `car_msgs` twice and stop with "Duplicate package names not supported".
+
 ## Hardware and data path (high level)
 
 - Multiple **ESP32-C3** boards with **MCP2515** on a **CAN bus** (sensors and actuators: pedal/VESC, steering, IMU, magnetometer, deadman, etc.).
@@ -69,11 +71,11 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 |------|------|---------|
 | Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
 | ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`; `webcam_node` is a managed lifecycle node that tunes exposure during configure and only publishes once active), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
-| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 topics** for the naming convention); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`car_params.yaml`** in **autonomous-systems-core** `ros2_ws/config/` |
+| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 topics** for the naming convention); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`core_params.yaml`** in **autonomous-systems-core** `ros2-core/src/core_bringup/config/` |
 | Calibration parameters | `ros2-vehicle/vehicle_calibration/config/` | **`calibration_params.yaml`** — calibration-only settings (chessboard, fitting, plots). Calibration launches load it together with `vehicle_params.yaml` |
 | Calibration outputs | `calibration/` | **Gitignored** JSON (and legacy NPZ/YAML) written by calibrators; directory may not exist until the first run on the car. Odom model JSON from **autonomous-systems-core** `calibrate_odom_model` uses the same default folder when run from the vehicle workspace |
-| Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (`car_msgs`, full stack tree for local builds); do not commit vehicle changes here |
-| CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` on Jazzy, with `core` submodule for message deps) |
+| Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (full stack tree for local builds, with `car_msgs` in its `io/` submodule); do not commit vehicle changes here |
+| CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` and `core/io/ros2-io/car_msgs` on Jazzy, submodules checked out recursively) |
 
 Package folder names under `ros2-vehicle/` match ROS package names. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
 
