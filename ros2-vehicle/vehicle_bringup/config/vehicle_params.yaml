@@ -34,6 +34,9 @@
     joy_topic: "/vehicle_internal/joystick/raw"                    # joy_node -> joystick_reader
     joystick_movement_topic: "/vehicle_internal/joystick/commands" # joystick_reader -> uart_writer
 
+    # Autonomy
+    mpc_movement_topic: "/mpc"  # MPC_Node (autonomous-systems-core) -> uart_writer
+
     # Shared files and devices
     camera_device_path: "/dev/video0"
     gps_device_path: "/dev/ttyUSB1"
@@ -89,3 +92,6 @@ uart_node:
 uart_writer:
   ros__parameters:
     serial_port: "/dev/ttyACM1" # PCToCAN (command UART write)
+    mpc_max_rpm: 338            # MPC RPM mapped to full joystick throttle (R2: 50); 338 is about 1 m/s
+    mpc_timeout: 0.5            # seconds without /mpc before idle joystick commands are written again
+    joystick_override_hold: 1.0 # seconds the joystick keeps control after its last input

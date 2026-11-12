@@ -57,7 +57,7 @@ Inside the onboard container, ROS 2 nodes in this repo:
 
 1. Read UART from CANToPC and fan out raw lines (e.g. `/vehicle_internal/serial/*`).
 2. Decode into typed sensor topics for the data I/O interface / core stack.
-3. Subscribe to motion commands (e.g. teleop today; autonomy later) and write UART to PCToCAN.
+3. Subscribe to motion commands (teleop on `/vehicle_internal/joystick/commands`, autonomy on `/mpc` from the core MPC; joystick input overrides the MPC) and write UART to PCToCAN.
 
 Autonomy logic talks **ROS 2**, not CAN directly.
 
