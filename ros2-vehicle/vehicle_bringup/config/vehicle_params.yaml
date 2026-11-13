@@ -38,7 +38,8 @@
     mpc_movement_topic: "/mpc"  # MPC_Node (autonomous-systems-core) -> uart_writer
 
     # Shared files and devices
-    camera_device_path: "/dev/video0"
+    camera_device_path: "/dev/v4l/by-id/usb-Elgato_Elgato_Facecam_MK.2_A6HTB52822IIIY-video-index0"
+
     gps_device_path: "/dev/ttyUSB1"
     camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
     camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
@@ -87,11 +88,12 @@ gps_node:
 # Utility nodes parameters
 uart_node:
   ros__parameters:
-    serial_port: "/dev/ttyACM0" # CANToPC (sensor UART read)
+    serial_port: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_54:32:04:86:E7:30-if00" # CANToPC (sensor UART read)
+
 
 uart_writer:
   ros__parameters:
-    serial_port: "/dev/ttyACM1" # PCToCAN (command UART write)
+    serial_port: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_80:F1:B2:65:8F:A0-if00" # PCToCAN (command UART write)
     mpc_max_rpm: 338            # MPC RPM mapped to full joystick throttle (R2: 50); 338 is about 1 m/s
     mpc_timeout: 0.5            # seconds without /mpc before idle joystick commands are written again
     joystick_override_hold: 1.0 # seconds the joystick keeps control after its last input
