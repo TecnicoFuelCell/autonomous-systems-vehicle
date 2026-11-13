@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import errno
+import os
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
@@ -7,6 +10,15 @@ from cv_bridge import CvBridge
 import cv2
 
 from webcam_pub.camera_exposure import apply_exposure_settings
+
+
+def get_open_errno(device_path):
+    try:
+        fd = os.open(device_path, os.O_RDWR)
+    except OSError as exc:
+        return exc.errno
+    os.close(fd)
+    return errno.EIO
 
 
 class WebcamPublisher(Node):
@@ -47,9 +59,8 @@ class WebcamPublisher(Node):
         self.cap = cv2.VideoCapture(device_path, cv2.CAP_V4L2)
         
         if not self.cap.isOpened():
-            self.get_logger().error(f'Failed to open camera device {device_path}\n')
-            self.get_logger().error('POSSIBLE ISSUE: If /dev/video0 is available inside the container, another process like rviz or cheese might be using the camera stream')
-            raise RuntimeError(f'Cannot open camera device {device_path}')
+            error_number = get_open_errno(device_path)
+            raise RuntimeError(f'[Errno {error_number}] {os.strerror(error_number)}')
         
         # Negotiate one of the formats explicitly advertised by the device.
         if len(pixel_format) != 4:
