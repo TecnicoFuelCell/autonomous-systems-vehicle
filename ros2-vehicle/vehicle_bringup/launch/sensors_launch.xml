@@ -1,0 +1,104 @@
+<!-- Sensors bringup: Xsens MTi IMU + u-blox ZED-X20D GNSS/heading receiver.
+
+     The drivers themselves are built into the Docker image under
+     /opt/sensor_ws (see autonomous-systems-docker/Dockerfile), not vendored
+     into this repository. This file only starts them and exposes the few
+     settings that change between bench and car.
+
+     Published topics:
+       /imu/data                 sensor_msgs/Imu        Xsens
+       /gps/ubx_nav_da_heading   UBXNavDAHeading        dual-antenna heading (raw)
+       /gps/ubx_nav_hp_pos_llh   UBXNavHPPosLLH         high precision position
+       /gps/ubx_nav_status       UBXNavStatus           fix / RTK status
+       /gps/ubx_nav_cov          UBXNavCov              position covariance
+       /gps/fix                  sensor_msgs/NavSatFix  ublox_nav_sat_fix_hp_node
+       /gps/heading/imu          sensor_msgs/Imu        yaw only, GPS only
+       /ntrip_client/rtcm        rtcm_msgs/Message      NTRIP corrections
+
+     The Xsens publishers use absolute topic names (/imu/data), so no remap is
+     needed. Only /imu/data is enabled: the other Xsens outputs are disabled to
+     keep the topic list readable.
+-->
+
+<launch>
+    <!-- ============================ Xsens MTi ============================ -->
+    <arg name="xsens_port" default="/dev/ttyUSB0"/>
+    <arg name="xsens_baudrate" default="921600"/>
+
+    <!-- Parameter file from the driver package, then explicit overrides. The
+         upstream YAML defaults to scan_for_devices: true, which ignores the
+         port and baudrate; we prefer the deterministic settings on the car. -->
+    <node pkg="bluespace_ai_xsens_mti_driver" exec="xsens_mti_node"
+          name="xsens_mti_node" output="screen">
+        <param from="$(find-pkg-share bluespace_ai_xsens_mti_driver)/param/xsens_mti_node.yaml"/>
+
+        <param name="scan_for_devices" value="false"/>
+        <param name="port" value="$(var xsens_port)"/>
+        <param name="baudrate" value="$(var xsens_baudrate)"/>
+        <param name="frame_id" value="imu_link"/>
+
+        <!-- The driver would broadcast world -> imu_link, which conflicts with
+             the static base_link -> imu_link published by the fusion launch. -->
+        <param name="pub_transform" value="false"/>
+
+        <!-- Only the combined IMU message is consumed downstream. -->
+        <param name="pub_imu" value="true"/>
+        <param name="pub_quaternion" value="false"/>
+        <param name="pub_acceleration" value="false"/>
+        <param name="pub_angular_velocity" value="false"/>
+        <param name="pub_mag" value="false"/>
+        <param name="pub_dq" value="false"/>
+        <param name="pub_dv" value="false"/>
+        <param name="pub_sampletime" value="false"/>
+        <param name="pub_temperature" value="false"/>
+        <param name="pub_pressure" value="false"/>
+        <param name="pub_gnss" value="false"/>
+        <param name="pub_twist" value="false"/>
+        <param name="pub_free_acceleration" value="false"/>
+        <param name="pub_positionLLA" value="false"/>
+        <param name="pub_velocity" value="false"/>
+
+        <!-- The upstream YAML ships zeros, which tells robot_localization the
+             gyro is perfect. Use realistic 1-sigma values instead. -->
+        <param name="orientation_stddev" value="[0.01, 0.01, 0.02]"/>
+        <param name="angular_velocity_stddev" value="[0.005, 0.005, 0.01]"/>
+        <param name="linear_acceleration_stddev" value="[0.05, 0.05, 0.05]"/>
+    </node>
+
+    <!-- ========================== u-blox ZED-X20D ======================== -->
+    <!-- All u-blox topics live under /gps (see the launch file for the full
+         list). daheading_offset is the clockwise angle, in 0.01 deg, from the
+         antenna-1 -> antenna-2 baseline to the vehicle forward axis
+         (9000 = +90 deg). heading_frame_id=base_link makes navsat_transform
+         treat the heading as the vehicle body yaw without an extra TF. -->
+    <arg name="ublox_namespace" default="gps"/>
+    <arg name="ublox_frame_id" default="ubx"/>
+    <arg name="daheading_offset" default="0"/>
+    <arg name="min_carr_soln" default="2"/>
+    <arg name="ublox_log_level" default="INFO"/>
+
+    <include file="$(find-pkg-share ublox_dgnss)/launch/ublox_x20d_rover_heading.launch.py">
+        <arg name="namespace" value="$(var ublox_namespace)"/>
+        <arg name="frame_id" value="$(var ublox_frame_id)"/>
+        <arg name="daheading_offset" value="$(var daheading_offset)"/>
+        <arg name="min_carr_soln" value="$(var min_carr_soln)"/>
+        <arg name="heading_frame_id" value="base_link"/>
+        <arg name="log_level" value="$(var ublox_log_level)"/>
+    </include>
+
+    <!-- ============================= NTRIP =============================== -->
+    <!-- The X20D driver only forwards RTCM arriving on /ntrip_client/rtcm; it
+         does not start a corrections client. NTRIP credentials are read from
+         NTRIP_USERNAME / NTRIP_PASSWORD in the environment, never from git. -->
+    <arg name="ntrip_host" default="rtk2go.com"/>
+    <arg name="ntrip_port" default="2101"/>
+    <arg name="ntrip_mountpoint" default="R4F_RTK_ENV2"/>
+    <arg name="ntrip_use_https" default="false"/>
+
+    <include file="$(find-pkg-share ublox_dgnss)/launch/ntrip_client.launch.py">
+        <arg name="host" value="$(var ntrip_host)"/>
+        <arg name="port" value="$(var ntrip_port)"/>
+        <arg name="mountpoint" value="$(var ntrip_mountpoint)"/>
+        <arg name="use_https" value="$(var ntrip_use_https)"/>
+    </include>
+</launch>
