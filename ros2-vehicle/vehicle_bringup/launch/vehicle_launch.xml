@@ -17,9 +17,10 @@
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- UART writer: subscribes to /vehicle_internal/joystick/commands (ImSpeed)
-         and writes motor/steering commands to the PCSender serial device (which
-         translates them into CAN frames for the motors). -->
+    <!-- UART writer: subscribes to /vehicle_internal/joystick/commands and /mpc
+         (ImSpeed) and writes motor/steering commands to the PCSender serial device
+         (which translates them into CAN frames for the motors). Joystick input
+         overrides the MPC. -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
         <param from="$(var vehicle_params)"/>
     </node>
