@@ -6,6 +6,8 @@
 #include <functional>
 #include <exception>
 
+#include <rclcpp_components/register_node_macro.hpp>
+
 using namespace std::chrono_literals;
 
 namespace dir_pub {
@@ -28,8 +30,8 @@ std::string trim(const std::string& str) {
 }
 } // namespace
 
-DirNode::DirNode()
-: Node("dir_node")
+DirNode::DirNode(const rclcpp::NodeOptions & options)
+: Node("dir_node", options)
 {
     std::string dir_topic = this->declare_parameter<std::string>("dir_topic", "/dir_data");
 
@@ -56,12 +58,4 @@ void DirNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
 
 } // namespace dir_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<dir_pub::DirNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(dir_pub::DirNode)

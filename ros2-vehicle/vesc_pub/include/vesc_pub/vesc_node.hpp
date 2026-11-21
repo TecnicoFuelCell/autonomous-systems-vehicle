@@ -12,7 +12,7 @@ namespace vesc_pub {
 class VesceNode : public rclcpp::Node
 {
 public:
-    VesceNode();
+    explicit VesceNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
     void process(const std_msgs::msg::String::ConstSharedPtr msg);

@@ -8,6 +8,8 @@
 #include <exception>
 #include <sstream>
 
+#include <rclcpp_components/register_node_macro.hpp>
+
 using namespace std::chrono_literals;
 
 namespace vesc_pub {
@@ -40,8 +42,8 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
 }
 } // namespace
 
-VesceNode::VesceNode()
-: Node("vesc_node")
+VesceNode::VesceNode(const rclcpp::NodeOptions & options)
+: Node("vesc_node", options)
 {
     std::string vesc_topic = this->declare_parameter<std::string>("vesc_topic", "/vesc_data");
 
@@ -87,12 +89,4 @@ void VesceNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
 
 } // namespace vesc_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<vesc_pub::VesceNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(vesc_pub::VesceNode)

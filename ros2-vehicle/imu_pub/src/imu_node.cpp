@@ -9,6 +9,8 @@
 #include <exception>
 #include <sstream>
 
+#include <rclcpp_components/register_node_macro.hpp>
+
 using namespace std::chrono_literals;
 
 namespace imu_pub {
@@ -41,8 +43,8 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
 }
 } // namespace
 
-ImuNode::ImuNode()
-: Node("imu_node")
+ImuNode::ImuNode(const rclcpp::NodeOptions & options)
+: Node("imu_node", options)
 {
     std::string imu_topic = this->declare_parameter<std::string>("imu_topic", "/imu_data");
     std::string frame_id = this->declare_parameter<std::string>("frame_id", "imu_link");
@@ -140,12 +142,4 @@ void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
 
 } // namespace imu_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<imu_pub::ImuNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(imu_pub::ImuNode)

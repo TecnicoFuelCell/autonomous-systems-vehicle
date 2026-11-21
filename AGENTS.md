@@ -58,7 +58,7 @@ Embedded firmware (`embedded/`) is flashed to ESP32 boards and does **not** run 
 Inside the onboard container, ROS 2 nodes in this repo:
 
 1. Read UART from CANToPC and fan out raw lines (e.g. `/vehicle_internal/serial/*`).
-2. Decode into typed sensor topics for the data I/O interface / core stack.
+2. Decode into typed sensor topics for the data I/O interface / core stack. Steps 1 and 2 (`uart_reader` plus the `deadman_pub`, `vesc_pub`, `dir_pub`, `imu_pub`, `mag_pub` decoders) are **ROS 2 components** (`rclcpp_components`) loaded into one container process (`serial_container`) with intra-process communication; a crash in one of them stops all of them. New decoders of `uart_reader` lines should follow the same pattern.
 3. Subscribe to motion commands (teleop on `/vehicle_internal/joystick/commands`, autonomy on `/mpc` from the core MPC; joystick input overrides the MPC) and write UART to PCToCAN.
 
 Autonomy logic talks **ROS 2**, not CAN directly.
@@ -77,7 +77,7 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 | Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (full stack tree for local builds, with `car_msgs` in its `io/` submodule); do not commit vehicle changes here |
 | CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` and `core/io/ros2-io/car_msgs` on Jazzy, submodules checked out recursively) |
 
-Package folder names under `ros2-vehicle/` match ROS package names. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
+Package folder names under `ros2-vehicle/` match ROS package names. The component packages (`uart_reader` and its decoders) build a shared library registered with `rclcpp_components_register_node`, which also installs the old standalone executable (e.g. `ros2 run mag_pub mag_node`) for debugging. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
 
 ## Agent rules
 

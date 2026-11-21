@@ -4,6 +4,8 @@
 #include <cctype>
 #include <string>
 
+#include <rclcpp_components/register_node_macro.hpp>
+
 using namespace std::chrono_literals;
 
 namespace deadman_pub {
@@ -19,8 +21,8 @@ std::string trim(const std::string& str) {
 }
 } // namespace
 
-DeadmanNode::DeadmanNode()
-: Node("deadman_node")
+DeadmanNode::DeadmanNode(const rclcpp::NodeOptions & options)
+: Node("deadman_node", options)
 {
     alive_timeout_ = this->declare_parameter<double>("alive_timeout", 0.5);
 
@@ -93,12 +95,4 @@ void DeadmanNode::process_alive() {
 
 } // namespace deadman_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<deadman_pub::DeadmanNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(deadman_pub::DeadmanNode)
