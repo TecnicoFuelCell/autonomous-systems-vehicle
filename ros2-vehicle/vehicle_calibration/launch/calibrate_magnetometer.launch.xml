@@ -18,7 +18,7 @@
 
         <!-- CANToPC serial reader: republishes raw lines on /vehicle_internal/serial/*.
              Loaded last so mag_node is already subscribed. -->
-        <composable_node pkg="uart_reader" plugin="uart_reader::UartNode" name="uart_node">
+        <composable_node pkg="uart_reader" plugin="uart_reader::UartReaderNode" name="uart_reader">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>

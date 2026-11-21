@@ -8,7 +8,7 @@
 # section below. Comments show publisher -> subscribers.
 /**:
   ros__parameters:
-    # Raw CANToPC UART lines: uart_node -> decoder nodes (internal)
+    # Raw CANToPC UART lines: uart_reader -> decoder nodes (internal)
     serial_vesc_topic: "/vehicle_internal/serial/vesc"        # -> vesc_node
     serial_dir_topic: "/vehicle_internal/serial/dir"          # -> dir_node
     serial_acc_topic: "/vehicle_internal/serial/acc"          # -> imu_node
@@ -96,7 +96,7 @@ gps_node:
     synthetic_mode: false
 
 # Utility nodes parameters
-uart_node:
+uart_reader:
   ros__parameters:
     serial_port: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_54:32:04:86:E7:30-if00" # CANToPC (sensor UART read)
 

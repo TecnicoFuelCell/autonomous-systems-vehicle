@@ -1,5 +1,5 @@
-#ifndef UART_READER_UART_NODE_HPP_
-#define UART_READER_UART_NODE_HPP_
+#ifndef UART_READER_UART_READER_NODE_HPP_
+#define UART_READER_UART_READER_NODE_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -10,11 +10,11 @@
 
 namespace uart_reader {
 
-class UartNode : public rclcpp::Node
+class UartReaderNode : public rclcpp::Node
 {
 public:
-    explicit UartNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
-    ~UartNode();
+    explicit UartReaderNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+    ~UartReaderNode();
 
 private:
     void read_uart();
@@ -35,4 +35,4 @@ private:
 
 } // namespace uart_reader
 
-#endif // UART_READER_UART_NODE_HPP_
+#endif // UART_READER_UART_READER_NODE_HPP_

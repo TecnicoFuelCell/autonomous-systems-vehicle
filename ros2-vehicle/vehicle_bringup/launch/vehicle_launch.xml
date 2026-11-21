@@ -1,5 +1,3 @@
-<!-- launch car with joystick-->
-
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
@@ -11,51 +9,40 @@
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- UART writer: subscribes to /vehicle_internal/joystick/commands and /mpc
-         (ImSpeed) and writes motor/steering commands to the PCSender serial device
-         (which translates them into CAN frames for the motors). Joystick input
-         overrides the MPC. -->
+    <!-- UART writer: Joystick input overrides the MPC. -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- Serial container: the UART reader and every decoder of its lines run as
-         components in one process. With intra-process comms the raw
-         /vehicle_internal/serial/* lines are passed in memory instead of through
-         DDS; external subscribers (ros2 topic echo, bags, core) still see all topics.
-         Components load in the order listed. A crash in any of them stops all of
-         them, including the deadman watchdog. -->
     <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen">
-        <!-- Deadman watchdog: consumes /serial/deadman ALIVE lines from the reader
-             and publishes /deadman/alive (disarms when ALIVE goes stale). -->
+
         <composable_node pkg="deadman_pub" plugin="deadman_pub::DeadmanNode" name="deadman_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
 
-        <!-- Sensor decode nodes: subscribe to raw /serial/* lines from uart_reader
-             and publish the typed topics (names unchanged for downstream consumers). -->
         <composable_node pkg="vesc_pub" plugin="vesc_pub::VesceNode" name="vesc_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
+
         <composable_node pkg="dir_pub" plugin="dir_pub::DirNode" name="dir_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
+
         <composable_node pkg="imu_pub" plugin="imu_pub::ImuNode" name="imu_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
+
         <composable_node pkg="mag_pub" plugin="mag_pub::MagNode" name="mag_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
 
-        <!-- UART reader: owns the CANToPC serial device (read-only upstream) and
-             republishes each raw sensor line on /serial/* for the decoders above.
-             Loaded last so the decoders are already subscribed when lines arrive. -->
-        <composable_node pkg="uart_reader" plugin="uart_reader::UartNode" name="uart_node">
+        <!-- UART reader: Loaded last so the decoders are already subscribed when lines arrive. -->
+        <composable_node pkg="uart_reader" plugin="uart_reader::UartReaderNode" name="uart_reader">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>

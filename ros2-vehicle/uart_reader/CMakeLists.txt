@@ -11,7 +11,7 @@ find_package(rclcpp_components REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(uart_reader_component SHARED
-  src/uart_node.cpp
+  src/uart_reader_node.cpp
 )
 
 target_include_directories(uart_reader_component PUBLIC
@@ -25,10 +25,10 @@ ament_target_dependencies(uart_reader_component
   std_msgs
 )
 
-# Loadable into a component container; also generates the standalone uart_node executable.
+# Loadable into a component container; also generates the standalone uart_reader_node executable.
 rclcpp_components_register_node(uart_reader_component
-  PLUGIN "uart_reader::UartNode"
-  EXECUTABLE uart_node
+  PLUGIN "uart_reader::UartReaderNode"
+  EXECUTABLE uart_reader_node
 )
 
 install(TARGETS uart_reader_component

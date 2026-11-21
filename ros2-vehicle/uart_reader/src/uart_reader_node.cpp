@@ -1,4 +1,4 @@
-#include "uart_reader/uart_node.hpp"
+#include "uart_reader/uart_reader_node.hpp"
 
 #include <unistd.h>
 
@@ -12,8 +12,8 @@ using namespace std::chrono_literals;
 
 namespace uart_reader {
 
-UartNode::UartNode(const rclcpp::NodeOptions & options)
-: Node("uart_node", options), uart_fd_(-1)
+UartReaderNode::UartReaderNode(const rclcpp::NodeOptions & options)
+: Node("uart_reader_node", options), uart_fd_(-1)
 {
     std::string serial_port =
         this->declare_parameter<std::string>("serial_port", "/dev/ttyACM0");
@@ -41,16 +41,16 @@ UartNode::UartNode(const rclcpp::NodeOptions & options)
     deadman_pub_ = this->create_publisher<std_msgs::msg::String>(
         this->declare_parameter<std::string>("serial_deadman_topic", "/vehicle_internal/serial/deadman"), 10);
 
-    read_timer_ = this->create_wall_timer(5ms, std::bind(&UartNode::read_uart, this));
+    read_timer_ = this->create_wall_timer(5ms, std::bind(&UartReaderNode::read_uart, this));
 
     RCLCPP_INFO(this->get_logger(), "UART Reader Node initialized successfully.");
 }
 
-UartNode::~UartNode() {
+UartReaderNode::~UartReaderNode() {
     if (uart_fd_ >= 0) close(uart_fd_);
 }
 
-void UartNode::read_uart() {
+void UartReaderNode::read_uart() {
     if (uart_fd_ < 0) return;
 
     char buf[256];
@@ -66,7 +66,7 @@ void UartNode::read_uart() {
     }
 }
 
-void UartNode::handle_line(const std::string& line) {
+void UartReaderNode::handle_line(const std::string& line) {
     std::string trimmed = uart_utils::trim(line);
     if (trimmed.empty()) return;
 
@@ -96,4 +96,4 @@ void UartNode::handle_line(const std::string& line) {
 
 } // namespace uart_reader
 
-RCLCPP_COMPONENTS_REGISTER_NODE(uart_reader::UartNode)
+RCLCPP_COMPONENTS_REGISTER_NODE(uart_reader::UartReaderNode)
