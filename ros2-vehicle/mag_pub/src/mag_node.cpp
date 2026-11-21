@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include <nlohmann/json.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -48,8 +49,8 @@ void apply_mag_calibration(
 }
 } // namespace
 
-MagNode::MagNode()
-: Node("mag_node")
+MagNode::MagNode(const rclcpp::NodeOptions & options)
+: Node("mag_node", options)
 {
     std::string mag_topic = this->declare_parameter<std::string>("mag_topic", "/mag_data");
     frame_id_ = this->declare_parameter<std::string>("frame_id", "imu_link");
@@ -152,12 +153,4 @@ void MagNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
 
 } // namespace mag_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<mag_pub::MagNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(mag_pub::MagNode)

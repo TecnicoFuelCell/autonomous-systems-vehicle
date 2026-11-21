@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>joy</exec_depend>
+  <exec_depend>rclcpp_components</exec_depend>
   <exec_depend>joystick_pub</exec_depend>
   <exec_depend>uart_reader</exec_depend>
   <exec_depend>uart_writer</exec_depend>

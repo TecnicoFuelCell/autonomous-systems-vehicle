@@ -7,26 +7,36 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(car_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
-add_executable(vesc_node
+add_library(vesc_component SHARED
   src/vesc_node.cpp
 )
 
-target_include_directories(vesc_node PUBLIC
+target_include_directories(vesc_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(vesc_node
+ament_target_dependencies(vesc_component
   rclcpp
+  rclcpp_components
   car_msgs
   std_msgs
 )
 
-install(TARGETS vesc_node
-  DESTINATION lib/${PROJECT_NAME}
+# Loadable into a component container; also generates the standalone vesc_node executable.
+rclcpp_components_register_node(vesc_component
+  PLUGIN "vesc_pub::VesceNode"
+  EXECUTABLE vesc_node
+)
+
+install(TARGETS vesc_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

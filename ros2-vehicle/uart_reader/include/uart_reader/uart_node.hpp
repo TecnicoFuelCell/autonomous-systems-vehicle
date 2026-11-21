@@ -13,7 +13,7 @@ namespace uart_reader {
 class UartNode : public rclcpp::Node
 {
 public:
-    UartNode();
+    explicit UartNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
     ~UartNode();
 
 private:

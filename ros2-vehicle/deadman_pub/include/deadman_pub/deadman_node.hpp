@@ -13,7 +13,7 @@ namespace deadman_pub {
 class DeadmanNode : public rclcpp::Node
 {
 public:
-    DeadmanNode();
+    explicit DeadmanNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
     void serial_deadman_callback(const std_msgs::msg::String::ConstSharedPtr msg);
