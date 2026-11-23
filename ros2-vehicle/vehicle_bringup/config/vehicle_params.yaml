@@ -48,6 +48,7 @@
 # Sensor nodes parameters
 webcam_publisher:
   ros__parameters:
+    log_level: "warn"         # debug, info, warn, error, fatal
     publish_rate: 30.0
     frame_width: 1280
     frame_height: 720

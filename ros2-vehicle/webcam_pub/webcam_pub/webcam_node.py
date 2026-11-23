@@ -6,6 +6,7 @@ import os
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
+from rclpy.logging import LoggingSeverity
 from rclpy.parameter import Parameter
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -19,6 +20,18 @@ from webcam_pub.camera_exposure import (
     search_exposure,
     set_v4l2_control,
 )
+
+LOG_LEVELS = {
+    'debug': LoggingSeverity.DEBUG,
+    'info': LoggingSeverity.INFO,
+    'warn': LoggingSeverity.WARN,
+    'error': LoggingSeverity.ERROR,
+    'fatal': LoggingSeverity.FATAL,
+}
+
+# Minimum seconds between repeats of per-frame warnings (they would otherwise
+# fire at the camera frame rate).
+FRAME_WARN_THROTTLE_SEC = 5.0
 
 
 class WebcamPublisher(LifecycleNode):
@@ -37,14 +50,14 @@ class WebcamPublisher(LifecycleNode):
         super().__init__('webcam_publisher')
 
         self.param_names = self.declare_node_parameters()
+        self.apply_log_level()
 
         self.bridge = CvBridge()
         self.cap = None
         self.publisher_ = None
         self.timer = None
-        self.frame_count = 0
 
-        self.get_logger().info('Waiting for the configure transition (launch autostart or ros2 lifecycle set)')
+        self.get_logger().debug('Waiting for the configure transition (launch autostart or ros2 lifecycle set)')
 
     # Lifecycle transitions
 
@@ -58,14 +71,14 @@ class WebcamPublisher(LifecycleNode):
             self.release_camera()
             return TransitionCallbackReturn.FAILURE
 
-        self.publisher_ = self.create_lifecycle_publisher(Image, self.topic_name, 10)
-        self.get_logger().info(f'Configured; will publish to {self.topic_name} once activated')
+        self.publisher_ = self.create_lifecycle_publisher(Image, self.topic_name, 2)
+        self.get_logger().debug(f'Configured; will publish to {self.topic_name} once activated')
         return super().on_configure(state)
 
     def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
         result = super().on_activate(state)
         self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
-        self.get_logger().info(f'Activated: publishing at {self.publish_rate} Hz')
+        self.get_logger().info(f'Activated: publishing to {self.topic_name} at {self.publish_rate} Hz')
         return result
 
     def on_deactivate(self, state: LifecycleState) -> TransitionCallbackReturn:
@@ -100,7 +113,7 @@ class WebcamPublisher(LifecycleNode):
         self.pixel_format = str(self.get_parameter('pixel_format').value).upper()
 
         resolved = '\n'.join(f'  {name}: {self.get_parameter(name).value}' for name in self.param_names)
-        self.get_logger().info(f'Resolved parameters:\n{resolved}')
+        self.get_logger().debug(f'Resolved parameters:\n{resolved}')
 
     def open_camera(self):
         if len(self.pixel_format) != 4:
@@ -131,11 +144,9 @@ class WebcamPublisher(LifecycleNode):
                 f'Try a supported mode such as MJPG 1920x1080@60 or YUYV 1920x1080@30.'
             )
 
-        self.get_logger().info(f'Camera opened successfully on device {self.device_path}')
-        self.get_logger().info('Capture backend: V4L2')
-        self.get_logger().info(f'Configured pixel format: {self.pixel_format}')
         self.get_logger().info(
-            f'Negotiated capture mode: {negotiated_width}x{negotiated_height} @ {self.negotiated_fps:.1f} Hz'
+            f'Camera opened on {self.device_path} (V4L2, {self.pixel_format}): '
+            f'{negotiated_width}x{negotiated_height} @ {self.negotiated_fps:.1f} Hz'
         )
         # warn if the intrinsics topic's width x height don't match ours
         if negotiated_width != self.frame_width or negotiated_height != self.frame_height:
@@ -155,7 +166,7 @@ class WebcamPublisher(LifecycleNode):
         if controls is None:
             self.report_exposure_problem(f'Cannot configure exposure: {error}', fail_fast)
             return
-        self.get_logger().info(
+        self.get_logger().debug(
             f'Exposure controls: {controls.auto_name}, {controls.absolute_name} '
             f'(device range {controls.absolute_min}..{controls.absolute_max})'
         )
@@ -189,7 +200,7 @@ class WebcamPublisher(LifecycleNode):
         settle_frames = self.get_parameter('exposure_settle_frames').value
         top_fraction = self.get_parameter('exposure_metering_top_fraction').value
 
-        self.get_logger().info(
+        self.get_logger().debug(
             f'Tuning exposure in {minimum}..{maximum} (x100 us) '
             f'for brightness {target:.0f} +/- {tolerance:.0f}'
         )
@@ -204,7 +215,7 @@ class WebcamPublisher(LifecycleNode):
             if not ret or frame is None:
                 raise RuntimeError(f'Lost the camera stream on {self.device_path} while tuning exposure')
             brightness = measure_brightness(frame, top_fraction)
-            self.get_logger().info(f'  exposure {value}: brightness {brightness:.1f}')
+            self.get_logger().debug(f'  exposure {value}: brightness {brightness:.1f}')
             return brightness
 
         result = search_exposure(
@@ -257,6 +268,17 @@ class WebcamPublisher(LifecycleNode):
         if not ok:
             raise ExposureControlError(f'Failed to set {controls.absolute_name}={value}: {output}')
 
+    def apply_log_level(self):
+        # Overrides --ros-args --log-level for this node's logger.
+        level = str(self.get_parameter('log_level').value).lower()
+        severity = LOG_LEVELS.get(level)
+        if severity is None:
+            self.get_logger().warn(
+                f'Unknown log_level {level!r} (valid: {", ".join(LOG_LEVELS)}); using info'
+            )
+            severity = LoggingSeverity.INFO
+        self.get_logger().set_level(severity)
+
     def report_exposure_problem(self, message, fail_fast):
         if fail_fast:
             raise RuntimeError(message)
@@ -277,14 +299,16 @@ class WebcamPublisher(LifecycleNode):
                 # Publish the message
                 self.publisher_.publish(msg)
 
-                self.frame_count += 1
-                if self.frame_count % 300 == 0:
-                    self.get_logger().info(f'Published {self.frame_count} frames')
-
             except Exception as e:
-                self.get_logger().error(f'Error converting/publishing image: {str(e)}')
+                self.get_logger().error(
+                    f'Error converting/publishing image: {str(e)}',
+                    throttle_duration_sec=FRAME_WARN_THROTTLE_SEC,
+                )
         else:
-            self.get_logger().warn('Failed to capture frame from camera')
+            self.get_logger().warn(
+                'Failed to capture frame from camera',
+                throttle_duration_sec=FRAME_WARN_THROTTLE_SEC,
+            )
 
     # Resource handling
 
@@ -319,6 +343,7 @@ class WebcamPublisher(LifecycleNode):
             namespace='',
             parameters=[
                 # Declare parameters
+                ('log_level', 'info'),
                 ('camera_device_path', '/dev/video0'),
                 ('publish_rate', 60.0),
                 ('camera_image_topic', '/zed/left_camera/image_raw'),
@@ -341,7 +366,7 @@ class WebcamPublisher(LifecycleNode):
             ]
         )
 
-        return ['camera_device_path', 'publish_rate', 'camera_image_topic', 'frame_width', 'frame_height',
+        return ['log_level', 'camera_device_path', 'publish_rate', 'camera_image_topic', 'frame_width', 'frame_height',
                 'camera_fps', 'pixel_format', 'configure_exposure', 'exposure_absolute',
                 'exposure_auto', 'exposure_fail_fast', 'auto_tune_exposure',
                 'exposure_target_brightness', 'exposure_brightness_tolerance', 'exposure_min',
