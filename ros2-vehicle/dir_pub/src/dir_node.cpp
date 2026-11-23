@@ -52,7 +52,8 @@ void DirNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
         RCLCPP_DEBUG(this->get_logger(), "Parsed Dir: %d", value);
         publisher_->publish(out);
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Dir parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "Dir parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
     }
 }
 

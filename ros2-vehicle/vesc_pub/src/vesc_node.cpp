@@ -57,7 +57,8 @@ VesceNode::VesceNode(const rclcpp::NodeOptions & options)
 void VesceNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
     std::vector<std::string> parts = split(msg->data, ',');
     if (parts.size() < 7) {
-        RCLCPP_ERROR(this->get_logger(), "VESC parse error: Not enough parts in payload (%zu/7)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "VESC parse error: Not enough parts in payload (%zu/7)", parts.size());
         return;
     }
 
@@ -77,13 +78,15 @@ void VesceNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
             std::abs(out.avginputcurrent) < 1e-5 && std::abs(out.dutycyclenow) < 1e-5 &&
             std::abs(out.rpm) < 1e-5 && std::abs(out.inpvoltage) < 1e-5 &&
             std::abs(out.watthours) < 1e-5) {
-            RCLCPP_ERROR(this->get_logger(), "VESC ALERT: All values are exactly zero!");
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "VESC ALERT: All values are exactly zero!");
         }
 
         RCLCPP_DEBUG(this->get_logger(), "Parsed VESC: rpm=%.2f, duty=%.2f, v_in=%.2f", out.rpm, out.dutycyclenow, out.inpvoltage);
         publisher_->publish(out);
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(get_logger(), "VESC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "VESC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
     }
 }
 

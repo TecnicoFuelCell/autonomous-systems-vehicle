@@ -119,7 +119,8 @@ void MagNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(raw_x) < 1e-10 &&
                 std::abs(raw_y) < 1e-10 &&
                 std::abs(raw_z) < 1e-10) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Magnetometer values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Magnetometer values are exactly zero! Check IMU connection.");
             }
 
             RCLCPP_DEBUG(this->get_logger(), "Raw MAG (T): x=%.9f, y=%.9f, z=%.9f", raw_x, raw_y, raw_z);
@@ -144,10 +145,12 @@ void MagNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
 
             publisher_->publish(mag_msg);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "MAG parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "MAG parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "MAG parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "MAG parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 

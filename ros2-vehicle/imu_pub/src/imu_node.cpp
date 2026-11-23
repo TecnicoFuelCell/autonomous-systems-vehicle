@@ -73,7 +73,8 @@ void ImuNode::process_acc(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(current_imu_msg_.linear_acceleration.x) < 1e-5 &&
                 std::abs(current_imu_msg_.linear_acceleration.y) < 1e-5 &&
                 std::abs(current_imu_msg_.linear_acceleration.z) < 1e-5) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Accelerometer values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Accelerometer values are exactly zero! Check IMU connection.");
             }
 
             current_imu_msg_.orientation.x = 0.0;
@@ -91,10 +92,12 @@ void ImuNode::process_acc(const std_msgs::msg::String::ConstSharedPtr msg) {
                          current_imu_msg_.linear_acceleration.y,
                          current_imu_msg_.linear_acceleration.z);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "ACC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "ACC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "ACC parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "ACC parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
@@ -111,7 +114,8 @@ void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(current_imu_msg_.angular_velocity.x) < 1e-5 &&
                 std::abs(current_imu_msg_.angular_velocity.y) < 1e-5 &&
                 std::abs(current_imu_msg_.angular_velocity.z) < 1e-5) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Gyroscope values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Gyroscope values are exactly zero! Check IMU connection.");
             }
 
             current_imu_msg_.orientation.x = 0.0;
@@ -133,10 +137,12 @@ void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
 
             publisher_->publish(current_imu_msg_);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "GYRO parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "GYRO parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "GYRO parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "GYRO parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
