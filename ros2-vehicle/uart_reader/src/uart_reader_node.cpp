@@ -2,7 +2,11 @@
 
 #include <unistd.h>
 
+#include <algorithm>
+#include <cctype>
+#include <map>
 #include <stdexcept>
+#include <string>
 
 #include <rclcpp_components/register_node_macro.hpp>
 
@@ -12,9 +16,38 @@ using namespace std::chrono_literals;
 
 namespace uart_reader {
 
+namespace {
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
+} // namespace
+
 UartReaderNode::UartReaderNode(const rclcpp::NodeOptions & options)
 : Node("uart_reader_node", options), uart_fd_(-1)
 {
+    apply_log_level(*this);
+
     std::string serial_port =
         this->declare_parameter<std::string>("serial_port", "/dev/ttyACM0");
 

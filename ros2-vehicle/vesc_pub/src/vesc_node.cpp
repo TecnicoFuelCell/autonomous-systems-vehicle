@@ -6,7 +6,9 @@
 #include <vector>
 #include <functional>
 #include <exception>
+#include <map>
 #include <sstream>
+#include <string>
 
 #include <rclcpp_components/register_node_macro.hpp>
 
@@ -40,11 +42,38 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
     }
     return tokens;
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
 VesceNode::VesceNode(const rclcpp::NodeOptions & options)
 : Node("vesc_node", options)
 {
+    apply_log_level(*this);
+
     std::string vesc_topic = this->declare_parameter<std::string>("vesc_topic", "/vesc_data");
 
     publisher_ = this->create_publisher<car_msgs::msg::VescData>(vesc_topic, 1);

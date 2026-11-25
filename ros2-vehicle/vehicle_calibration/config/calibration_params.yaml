@@ -1,5 +1,4 @@
-# Calibration-only topics: same <data>_topic convention as vehicle_params.yaml, defined once here.
-# An empty value disables that output.
+# Calibration-only topics (rules: AGENTS.md, "ROS 2 parameters"). An empty value disables that output.
 /**:
   ros__parameters:
     intrinsics_image_topic: "/vehicle_internal/calibration/intrinsics/image"  # calibrate_intrinsics: annotated chessboard detections
@@ -27,5 +26,5 @@ calibrate_magnetometer:
   ros__parameters:
     planar: true                # ground vehicle: only yaw varies, so fit a 2D ellipse
     planarity_threshold: 0.01   # auto-fallback to 2D when planar is false and data is flat
-    save_plot: false            # also write a before/after PNG next to mag_calib_path
+    save_plot: false            # also write a before/after PNG next to magnetometer_coefficients_path
     show_preview: false         # OpenCV window (needs a display); magnetometer_plot_topic works headless

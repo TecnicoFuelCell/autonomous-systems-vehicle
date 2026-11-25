@@ -2,6 +2,38 @@
 #include "sensor_msgs/msg/joy.hpp"
 #include "car_msgs/msg/im_speed.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <map>
+#include <string>
+
+namespace {
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
+} // namespace
+
 class JoystickReader : public rclcpp::Node {
     /*
     * Class name: JoystickReader
@@ -15,6 +47,8 @@ class JoystickReader : public rclcpp::Node {
 
     public:
         JoystickReader(): Node("joystick_reader") {
+            apply_log_level(*this);
+
             // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
             joy_topic_ = this->declare_parameter<std::string>(
                 "joy_topic", "/vehicle_internal/joystick/raw");
