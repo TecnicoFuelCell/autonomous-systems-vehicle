@@ -48,14 +48,12 @@
         </composable_node>
     </node_container>
 
-    <!-- Managed node: autostart runs configure (exposure tuning) then activate;
-         no images are published until both succeed. -->
+    <!-- Managed node: autostart runs configure (exposure tuning, calibration
+         files) then activate; no images, camera info or extrinsics are
+         published until both succeed. -->
     <lifecycle_node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" namespace="" autostart="true" output="screen">
         <param from="$(var vehicle_params)"/>
     </lifecycle_node>
-    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
 
     <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
         <param from="$(var vehicle_params)"/>

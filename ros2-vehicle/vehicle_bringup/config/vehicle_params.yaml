@@ -27,8 +27,8 @@
 
     # Camera
     camera_image_topic: "/zed/left_camera/image_raw"  # webcam_publisher
-    camera_info_topic: "/my/camera_info"              # camera_info_node
-    camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
+    camera_info_topic: "/my/camera_info"              # webcam_publisher
+    camera_extrinsics_topic: "/my/camera_extrinsics"  # webcam_publisher
 
     # Teleop
     joy_topic: "/vehicle_internal/joystick/raw"                    # joy_node -> joystick_reader
@@ -41,9 +41,9 @@
     camera_device_path: "/dev/v4l/by-id/usb-Elgato_Elgato_Facecam_MK.2_A6HTB52822IIIY-video-index0"
 
     gps_device_path: "/dev/ttyUSB1"
-    camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
-    camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
-    mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
+    camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> webcam_publisher, calibrate_extrinsics
+    camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> webcam_publisher
+    mag_calib_path: "calibration/magnetometer_coefficients.json"  # calibrate_magnetometer -> mag_node
 
 # Sensor nodes parameters
 webcam_publisher:
@@ -68,10 +68,8 @@ webcam_publisher:
     exposure_max_iterations: 10
     exposure_settle_frames: 8            # frames dropped after each exposure change
     exposure_metering_top_fraction: 0.0  # ignore this top fraction of the image (e.g. sky) when metering
-
-camera_info_node:
-  ros__parameters:
-    publish_intrinsics: true
+    # Calibration topics; a missing calibration file only disables its topic.
+    publish_intrinsics: true  # CameraInfo with each frame, same stamp as the image
     publish_extrinsics: true
 
 joy_node:
