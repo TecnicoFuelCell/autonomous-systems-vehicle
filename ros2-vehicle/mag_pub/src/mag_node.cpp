@@ -1,7 +1,10 @@
 #include "mag_pub/mag_node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 #include <functional>
@@ -9,6 +12,7 @@
 #include <sstream>
 
 #include <nlohmann/json.hpp>
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -46,11 +50,38 @@ void apply_mag_calibration(
         }
     }
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
-MagNode::MagNode()
-: Node("mag_node")
+MagNode::MagNode(const rclcpp::NodeOptions & options)
+: Node("mag_node", options)
 {
+    apply_log_level(*this);
+
     std::string mag_topic = this->declare_parameter<std::string>("mag_topic", "/mag_data");
     frame_id_ = this->declare_parameter<std::string>("frame_id", "imu_link");
 
@@ -66,7 +97,8 @@ MagNode::MagNode()
 void MagNode::load_mag_calibration() {
     apply_mag_calib_ = this->declare_parameter<bool>("apply_mag_calib", true);
     const std::string path =
-        this->declare_parameter<std::string>("mag_calib_path", "calibration/mag_calib.json");
+        this->declare_parameter<std::string>(
+            "magnetometer_coefficients_path", "calibration/magnetometer_coefficients.json");
 
     mag_offset_ = {{0.0, 0.0, 0.0}};
     mag_matrix_ = {{ {{1.0, 0.0, 0.0}}, {{0.0, 1.0, 0.0}}, {{0.0, 0.0, 1.0}} }};
@@ -118,7 +150,8 @@ void MagNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(raw_x) < 1e-10 &&
                 std::abs(raw_y) < 1e-10 &&
                 std::abs(raw_z) < 1e-10) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Magnetometer values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Magnetometer values are exactly zero! Check IMU connection.");
             }
 
             RCLCPP_DEBUG(this->get_logger(), "Raw MAG (T): x=%.9f, y=%.9f, z=%.9f", raw_x, raw_y, raw_z);
@@ -143,21 +176,15 @@ void MagNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
 
             publisher_->publish(mag_msg);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "MAG parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "MAG parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "MAG parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "MAG parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
 } // namespace mag_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<mag_pub::MagNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(mag_pub::MagNode)

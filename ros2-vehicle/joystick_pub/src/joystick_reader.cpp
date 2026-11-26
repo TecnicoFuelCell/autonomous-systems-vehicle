@@ -2,6 +2,38 @@
 #include "sensor_msgs/msg/joy.hpp"
 #include "car_msgs/msg/im_speed.hpp"
 
+#include <algorithm>
+#include <cctype>
+#include <map>
+#include <string>
+
+namespace {
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
+} // namespace
+
 class JoystickReader : public rclcpp::Node {
     /*
     * Class name: JoystickReader
@@ -15,6 +47,8 @@ class JoystickReader : public rclcpp::Node {
 
     public:
         JoystickReader(): Node("joystick_reader") {
+            apply_log_level(*this);
+
             // Declare parameters (with defaults); override in vehicle_bringup/config/vehicle_params.yaml
             joy_topic_ = this->declare_parameter<std::string>(
                 "joy_topic", "/vehicle_internal/joystick/raw");
@@ -30,9 +64,20 @@ class JoystickReader : public rclcpp::Node {
             return static_cast<int>((value - from_min) * (to_max - to_min) / (from_max - from_min) + to_min);
         }
 
+        // Trigger axes report 0.0 until they are moved for the first time.
+        // Treat that initial value as "released" (1.0), otherwise an idle
+        // trigger looks half pressed and produces a command of 24.
+        float trigger_axis(float raw, bool &seen) {
+            if (!seen && raw == 0.0f) {
+                return 1.0f;
+            }
+            seen = true;
+            return raw;
+        }
+
         void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
-            float r2 = (1.0f - msg->axes[5]) / 2.0f;
-            float l2 = (1.0f - msg->axes[4]) / 2.0f;
+            float r2 = (1.0f - trigger_axis(msg->axes[5], r2_seen_)) / 2.0f;
+            float l2 = (1.0f - trigger_axis(msg->axes[4], l2_seen_)) / 2.0f;
 
             float left_analog = - msg->axes[0]; // Left stick horizontal
             
@@ -60,6 +105,10 @@ class JoystickReader : public rclcpp::Node {
 
         std::string joy_topic_;
         std::string movement_topic_;
+
+        // True once the trigger axis has reported a value other than 0.0.
+        bool l2_seen_ = false;
+        bool r2_seen_ = false;
 
         rclcpp::Publisher<car_msgs::msg::ImSpeed>::SharedPtr publisher_;
         rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscriber_;

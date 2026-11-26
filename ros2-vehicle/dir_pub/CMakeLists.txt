@@ -7,26 +7,36 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(car_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
-add_executable(dir_node
+add_library(dir_component SHARED
   src/dir_node.cpp
 )
 
-target_include_directories(dir_node PUBLIC
+target_include_directories(dir_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(dir_node
+ament_target_dependencies(dir_component
   rclcpp
+  rclcpp_components
   car_msgs
   std_msgs
 )
 
-install(TARGETS dir_node
-  DESTINATION lib/${PROJECT_NAME}
+# Loadable into a component container; also generates the standalone dir_node executable.
+rclcpp_components_register_node(dir_component
+  PLUGIN "dir_pub::DirNode"
+  EXECUTABLE dir_node
+)
+
+install(TARGETS dir_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

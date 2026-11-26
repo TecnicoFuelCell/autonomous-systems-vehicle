@@ -5,7 +5,7 @@ Magnetometer hard/soft-iron calibration node.
 Subscribes to the raw magnetometer topic (sensor_msgs/MagneticField), collects
 samples while the car turns through all headings, and on Ctrl+C fits an
 ellipse (planar, 2D) or ellipsoid (3D) and writes the correction to
-mag_calib_path as JSON:
+magnetometer_coefficients_path as JSON:
 
     calibrated = soft_iron_matrix @ (raw - hard_iron_offset)
 
@@ -15,10 +15,10 @@ come from the shared section of vehicle_params.yaml; the other parameters
 from config/calibration_params.yaml.
 
 Outputs:
-    mag_calib_path   calibration JSON (always)
+    magnetometer_coefficients_path  calibration JSON (always)
     magnetometer_plot_topic  live sample plot while sampling (view with rqt_image_view)
     show_preview     same live plot in an OpenCV window (needs a display; q stops sampling)
-    <mag_calib_path>.png  before/after XY plot, only when save_plot is true
+    <magnetometer_coefficients_path>.png  before/after XY plot, only when save_plot is true
 """
 
 import io
@@ -30,13 +30,14 @@ import numpy as np
 
 import rclpy
 from rclpy.executors import ExternalShutdownException
+from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage, MagneticField
 
 # Fallbacks when the node is started without launch params.
 _DEFAULT_MAG_TOPIC = '/mag_data'
-_DEFAULT_MAG_CALIB_PATH = 'calibration/mag_calib.json'
+_DEFAULT_MAGNETOMETER_COEFFICIENTS_PATH = 'calibration/magnetometer_coefficients.json'
 _DEFAULT_MAG_PLOT_TOPIC = '/vehicle_internal/calibration/magnetometer/plot'
 
 # sensor_msgs/MagneticField is in tesla; the calibration is stored in microtesla.
@@ -327,12 +328,32 @@ def render_live_plot_png(samples: np.ndarray, units: str, total_samples: int) ->
 # ROS node
 # ---------------------------------------------------------------------------
 
+_LOG_LEVELS = {
+    "debug": LoggingSeverity.DEBUG,
+    "info": LoggingSeverity.INFO,
+    "warn": LoggingSeverity.WARN,
+    "error": LoggingSeverity.ERROR,
+    "fatal": LoggingSeverity.FATAL,
+}
+
+
+def _apply_log_level(node):
+    """Set the node's logger level from its log_level parameter (overrides --log-level)."""
+    level = str(node.declare_parameter("log_level", "info").value).lower()
+    severity = _LOG_LEVELS.get(level)
+    if severity is None:
+        node.get_logger().warn(f"Unknown log_level {level!r} (valid: {', '.join(_LOG_LEVELS)}); using info")
+        severity = LoggingSeverity.INFO
+    node.get_logger().set_level(severity)
+
+
 class MagCalibrator(Node):
     def __init__(self):
         super().__init__("calibrate_magnetometer")
+        _apply_log_level(self)
 
         self.declare_parameter("mag_topic", _DEFAULT_MAG_TOPIC)
-        self.declare_parameter("mag_calib_path", _DEFAULT_MAG_CALIB_PATH)
+        self.declare_parameter("magnetometer_coefficients_path", _DEFAULT_MAGNETOMETER_COEFFICIENTS_PATH)
         self.declare_parameter("magnetometer_plot_topic", _DEFAULT_MAG_PLOT_TOPIC)
         self.declare_parameter("planar", True)
         self.declare_parameter("planarity_threshold", 0.01)
@@ -341,7 +362,7 @@ class MagCalibrator(Node):
 
         mag_topic = str(self.get_parameter("mag_topic").value)
         self.output_path = Path(
-            str(self.get_parameter("mag_calib_path").value)
+            str(self.get_parameter("magnetometer_coefficients_path").value)
         ).expanduser().resolve()
         plot_topic = str(self.get_parameter("magnetometer_plot_topic").value).strip()
         self.planar = bool(self.get_parameter("planar").value)

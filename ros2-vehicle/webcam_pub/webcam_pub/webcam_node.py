@@ -1,142 +1,434 @@
 #!/usr/bin/env python3
 
+import errno
+import os
+
 import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image
+from rclpy.executors import ExternalShutdownException
+from rclpy.lifecycle import LifecycleNode, LifecycleState, TransitionCallbackReturn
+from rclpy.logging import LoggingSeverity
+from rclpy.parameter import Parameter
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
+from sensor_msgs.msg import CameraInfo, Image
+from car_msgs.msg import CameraExtrinsics
 from cv_bridge import CvBridge
 import cv2
 
-from webcam_pub.camera_exposure import apply_exposure_settings
+from webcam_pub.camera_calibration import load_camera_extrinsics, load_camera_info
+from webcam_pub.camera_exposure import (
+    ExposureControlError,
+    apply_exposure_settings,
+    find_exposure_controls,
+    measure_brightness,
+    search_exposure,
+    set_v4l2_control,
+)
+
+LOG_LEVELS = {
+    'debug': LoggingSeverity.DEBUG,
+    'info': LoggingSeverity.INFO,
+    'warn': LoggingSeverity.WARN,
+    'error': LoggingSeverity.ERROR,
+    'fatal': LoggingSeverity.FATAL,
+}
+
+# Minimum seconds between repeats of per-frame warnings (they would otherwise
+# fire at the camera frame rate).
+FRAME_WARN_THROTTLE_SEC = 5.0
+
+# Extrinsics are static: latched for late subscribers and also re-sent at
+# EXTRINSICS_PERIOD_SEC for subscribers that do not request TRANSIENT_LOCAL.
+EXTRINSICS_QOS = QoSProfile(
+    depth=1,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+)
+EXTRINSICS_PERIOD_SEC = 1.0
+
+# Errors raised by a missing, malformed or incomplete calibration file.
+CALIBRATION_FILE_ERRORS = (OSError, ValueError, KeyError, IndexError, TypeError)
 
 
-class WebcamPublisher(Node):
+class WebcamPublisher(LifecycleNode):
+    """Managed (lifecycle) camera publisher.
+
+    configure:  open the camera, negotiate the capture mode, tune exposure and
+                load the calibration files
+    activate:   start publishing frames (each with a CameraInfo of the same
+                stamp) and the camera extrinsics
+    deactivate: stop publishing (camera stays open)
+    cleanup:    release the camera; a new configure re-tunes exposure and
+                reloads the calibration files
+
+    Nothing is published until the node is active, so recordings never contain
+    frames taken before the exposure was set for the current lighting.
+    """
+
     def __init__(self):
         super().__init__('webcam_publisher')
-        
+
         self.param_names = self.declare_node_parameters()
+        self.apply_log_level()
 
-        # Get parameters
-        device_path = self.get_parameter('camera_device_path').value
-        publish_rate = self.get_parameter('publish_rate').value
-        topic_name = self.get_parameter('camera_image_topic').value
-        frame_width = self.get_parameter('frame_width').value
-        frame_height = self.get_parameter('frame_height').value
-        camera_fps = self.get_parameter('camera_fps').value
-        pixel_format = str(self.get_parameter('pixel_format').value).upper()
-        configure_exposure = self.get_parameter('configure_exposure').value
-        exposure_absolute = self.get_parameter('exposure_absolute').value
-        exposure_auto = self.get_parameter('exposure_auto').value
-        exposure_fail_fast = self.get_parameter('exposure_fail_fast').value
-        
-        # debug log params
-        self.get_logger().info(
-            "Resolved parameters:\n" f"  camera_device_path: {device_path}\n" f"  publish_rate: {publish_rate}\n"
-            f"  camera_image_topic: {topic_name}\n" f"  frame_width: {frame_width}\n" f"  frame_height: {frame_height}\n"
-            f"  camera_fps: {camera_fps}\n" f"  pixel_format: {pixel_format}\n"
-            f"  configure_exposure: {configure_exposure}\n"
-            f"  exposure_absolute: {exposure_absolute}\n" f"  exposure_auto: {exposure_auto}"
-        )
-
-        # Create publisher
-        self.publisher_ = self.create_publisher(Image, topic_name, 10)
-        
-        # Initialize CV Bridge
         self.bridge = CvBridge()
+        self.cap = None
+        self.publisher_ = None
+        self.timer = None
+        self.camera_info_pub = None
+        self.camera_info_msg = None
+        self.extrinsics_pub = None
+        self.extrinsics_msg = None
+        self.extrinsics_timer = None
+
+        self.get_logger().debug('Waiting for the configure transition (launch autostart or ros2 lifecycle set)')
+
+    # Lifecycle transitions
+
+    def on_configure(self, state: LifecycleState) -> TransitionCallbackReturn:
+        try:
+            self.load_parameters()
+            self.open_camera()
+            self.configure_camera_exposure()
+        except Exception as e:
+            self.get_logger().error(f'Configure failed: {e}')
+            self.release_camera()
+            return TransitionCallbackReturn.FAILURE
+
+        self.publisher_ = self.create_lifecycle_publisher(Image, self.topic_name, 2)
+        self.create_calibration_publishers()
+        self.get_logger().debug(f'Configured; will publish to {self.topic_name} once activated')
+        return super().on_configure(state)
+
+    def on_activate(self, state: LifecycleState) -> TransitionCallbackReturn:
+        result = super().on_activate(state)
+        self.timer = self.create_timer(1.0 / self.publish_rate, self.timer_callback)
+        if self.extrinsics_pub is not None:
+            self.publish_extrinsics()
+            self.extrinsics_timer = self.create_timer(EXTRINSICS_PERIOD_SEC, self.publish_extrinsics)
+        self.get_logger().info(f'Activated: publishing to {self.topic_name} at {self.publish_rate} Hz')
+        return result
+
+    def on_deactivate(self, state: LifecycleState) -> TransitionCallbackReturn:
+        self.destroy_timers()
+        self.get_logger().info('Deactivated: publishing stopped')
+        return super().on_deactivate(state)
+
+    def on_cleanup(self, state: LifecycleState) -> TransitionCallbackReturn:
+        result = super().on_cleanup(state)
+        self.release_resources()
+        return result
+
+    def on_shutdown(self, state: LifecycleState) -> TransitionCallbackReturn:
+        result = super().on_shutdown(state)
+        self.release_resources()
+        return result
+
+    def on_error(self, state: LifecycleState) -> TransitionCallbackReturn:
+        self.get_logger().error(f'Error while in state {state.label}; releasing the camera')
+        self.release_resources()
+        return TransitionCallbackReturn.SUCCESS
+
+    # Configuration steps
+
+    def load_parameters(self):
+        self.device_path = self.get_parameter('camera_device_path').value
+        self.publish_rate = self.get_parameter('publish_rate').value
+        self.topic_name = self.get_parameter('camera_image_topic').value
+        self.frame_width = self.get_parameter('frame_width').value
+        self.frame_height = self.get_parameter('frame_height').value
+        self.camera_fps = self.get_parameter('camera_fps').value
+        self.pixel_format = str(self.get_parameter('pixel_format').value).upper()
+
+        resolved = '\n'.join(f'  {name}: {self.get_parameter(name).value}' for name in self.param_names)
+        self.get_logger().debug(f'Resolved parameters:\n{resolved}')
+
+    def open_camera(self):
+        if len(self.pixel_format) != 4:
+            raise RuntimeError(f'pixel_format must be a 4-character code, got {self.pixel_format!r}')
 
         # Force the V4L2 backend on Jetson to avoid OpenCV/GStreamer auto-selection.
-        self.cap = cv2.VideoCapture(device_path, cv2.CAP_V4L2)
-        
+        self.cap = cv2.VideoCapture(self.device_path, cv2.CAP_V4L2)
+
         if not self.cap.isOpened():
-            self.get_logger().error(f'Failed to open camera device {device_path}\n')
             self.get_logger().error('POSSIBLE ISSUE: If /dev/video0 is available inside the container, another process like rviz or cheese might be using the camera stream')
-            raise RuntimeError(f'Cannot open camera device {device_path}')
-        
+            raise RuntimeError(f'Cannot open camera device {self.device_path}')
+
         # Negotiate one of the formats explicitly advertised by the device.
-        if len(pixel_format) != 4:
-            raise RuntimeError(f'pixel_format must be a 4-character code, got {pixel_format!r}')
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.pixel_format))
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.frame_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.frame_height)
+        self.cap.set(cv2.CAP_PROP_FPS, self.camera_fps)
 
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*pixel_format))
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
-        self.cap.set(cv2.CAP_PROP_FPS, camera_fps)
+        self.negotiated_width = negotiated_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.negotiated_height = negotiated_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.negotiated_fps = self.cap.get(cv2.CAP_PROP_FPS)
 
-        negotiated_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        negotiated_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        negotiated_fps = self.cap.get(cv2.CAP_PROP_FPS)
-
-        # Fail fast instead of starting a node that only emits repeated read warnings.
+        # Fail fast instead of activating a node that only emits repeated read warnings.
         ret, frame = self.cap.read()
         if not ret or frame is None:
-            self.cap.release()
             raise RuntimeError(
-                f'Opened {device_path} but failed to read a frame. '
+                f'Opened {self.device_path} but failed to read a frame. '
                 f'Try a supported mode such as MJPG 1920x1080@60 or YUYV 1920x1080@30.'
             )
 
-        if configure_exposure:
-            apply_exposure_settings(
-                device_path=device_path,
-                exposure_absolute=exposure_absolute,
-                exposure_auto=exposure_auto,
-                logger=self.get_logger(),
-                fail_fast=exposure_fail_fast,
-            )
-        
-        self.get_logger().info(f'Camera opened successfully on device {device_path}')
-        self.get_logger().info('Capture backend: V4L2')
-        self.get_logger().info(f'Publishing to topic: {topic_name}')
-        self.get_logger().info(f'Configured pixel format: {pixel_format}')
         self.get_logger().info(
-            f'Negotiated capture mode: {negotiated_width}x{negotiated_height} @ {negotiated_fps:.1f} Hz'
+            f'Camera opened on {self.device_path} (V4L2, {self.pixel_format}): '
+            f'{negotiated_width}x{negotiated_height} @ {self.negotiated_fps:.1f} Hz'
         )
-        self.get_logger().info(f'Publish rate: {publish_rate} Hz')
-        # warn if the intrinsics topic's width x height don't match ours
-        if negotiated_width != frame_width or negotiated_height != frame_height:
-            self.get_logger().warn(f'WARNING: The capture resolution {negotiated_width}x{negotiated_height} that will be used \
-            does not match the frame dimensions {frame_width}x{frame_height} in the intrisincs topic')
-        
-        # Create timer for publishing
-        timer_period = 1.0 / publish_rate
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-        
-        self.frame_count = 0
-    
+        if negotiated_width != self.frame_width or negotiated_height != self.frame_height:
+            self.get_logger().warn(
+                f'Camera negotiated {negotiated_width}x{negotiated_height} instead of the requested '
+                f'{self.frame_width}x{self.frame_height}'
+            )
+
+    def create_calibration_publishers(self):
+        # A missing or invalid file only disables its topic: the calibration
+        # launches run this node before the files exist.
+        if self.get_parameter('publish_intrinsics').value:
+            path = str(self.get_parameter('camera_intrinsics_path').value)
+            try:
+                msg = load_camera_info(path, str(self.get_parameter('optical_frame_id').value))
+            except CALIBRATION_FILE_ERRORS as e:
+                self.get_logger().warn(f'Not publishing camera info: cannot load intrinsics from {path} ({e})')
+            else:
+                if msg.width and msg.height:
+                    if (msg.width, msg.height) != (self.negotiated_width, self.negotiated_height):
+                        self.get_logger().warn(
+                            f'Intrinsics in {path} were calibrated at {msg.width}x{msg.height} but the camera '
+                            f'runs at {self.negotiated_width}x{self.negotiated_height}; camera info will not '
+                            f'match the images'
+                        )
+                else:
+                    msg.width = self.negotiated_width
+                    msg.height = self.negotiated_height
+                self.camera_info_msg = msg
+                self.camera_info_pub = self.create_lifecycle_publisher(
+                    CameraInfo, str(self.get_parameter('camera_info_topic').value), 10)
+                self.get_logger().info(f'Loaded intrinsics from {path}')
+
+        if self.get_parameter('publish_extrinsics').value:
+            path = str(self.get_parameter('camera_extrinsics_path').value)
+            try:
+                self.extrinsics_msg = load_camera_extrinsics(
+                    path, str(self.get_parameter('extrinsics_parent_frame').value))
+            except CALIBRATION_FILE_ERRORS as e:
+                self.get_logger().warn(f'Not publishing camera extrinsics: cannot load {path} ({e})')
+            else:
+                self.extrinsics_pub = self.create_lifecycle_publisher(
+                    CameraExtrinsics, str(self.get_parameter('camera_extrinsics_topic').value), EXTRINSICS_QOS)
+                self.get_logger().info(f'Loaded extrinsics from {path}')
+
+    def configure_camera_exposure(self):
+        if not self.get_parameter('configure_exposure').value:
+            self.get_logger().info('configure_exposure is false; leaving camera exposure untouched')
+            return
+
+        fail_fast = self.get_parameter('exposure_fail_fast').value
+        exposure_absolute = self.get_parameter('exposure_absolute').value
+        exposure_auto = self.get_parameter('exposure_auto').value
+
+        controls, error = find_exposure_controls(self.device_path)
+        if controls is None:
+            self.report_exposure_problem(f'Cannot configure exposure: {error}', fail_fast)
+            return
+        self.get_logger().debug(
+            f'Exposure controls: {controls.auto_name}, {controls.absolute_name} '
+            f'(device range {controls.absolute_min}..{controls.absolute_max})'
+        )
+
+        auto_tune = self.get_parameter('auto_tune_exposure').value
+        if auto_tune:
+            minimum, maximum = self.exposure_search_range(controls)
+            exposure_absolute = min(max(exposure_absolute, minimum), maximum)
+
+        # Puts the camera in manual mode and writes the fixed value, which is
+        # also the starting point of the search below.
+        applied = apply_exposure_settings(
+            device_path=self.device_path,
+            exposure_absolute=exposure_absolute,
+            exposure_auto=exposure_auto,
+            logger=self.get_logger(),
+            fail_fast=fail_fast,
+            controls=controls,
+        )
+        if not applied or not auto_tune:
+            return
+
+        try:
+            self.tune_exposure(controls, exposure_absolute, minimum, maximum)
+        except ExposureControlError as e:
+            self.report_exposure_problem(f'Exposure tuning aborted: {e}', fail_fast)
+
+    def tune_exposure(self, controls, initial_exposure, minimum, maximum):
+        target = self.get_parameter('exposure_target_brightness').value
+        tolerance = self.get_parameter('exposure_brightness_tolerance').value
+        settle_frames = self.get_parameter('exposure_settle_frames').value
+        top_fraction = self.get_parameter('exposure_metering_top_fraction').value
+
+        self.get_logger().debug(
+            f'Tuning exposure in {minimum}..{maximum} (x100 us) '
+            f'for brightness {target:.0f} +/- {tolerance:.0f}'
+        )
+
+        def measure(value):
+            self.write_exposure(controls, value)
+            # V4L2 queues several frames captured before the change; drop them
+            # so the measured frame really uses the new exposure.
+            for _ in range(settle_frames):
+                self.cap.grab()
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                raise RuntimeError(f'Lost the camera stream on {self.device_path} while tuning exposure')
+            brightness = measure_brightness(frame, top_fraction)
+            self.get_logger().debug(f'  exposure {value}: brightness {brightness:.1f}')
+            return brightness
+
+        result = search_exposure(
+            measure,
+            initial=initial_exposure,
+            minimum=minimum,
+            maximum=maximum,
+            target=target,
+            tolerance=tolerance,
+            max_iterations=self.get_parameter('exposure_max_iterations').value,
+        )
+
+        self.write_exposure(controls, result.exposure)
+        # Expose the chosen value through `ros2 param get` and use it as the
+        # starting point if the node is configured again.
+        self.set_parameters([Parameter('exposure_absolute', Parameter.Type.INTEGER, result.exposure)])
+
+        if result.converged:
+            self.get_logger().info(
+                f'Exposure tuned to {result.exposure} (brightness {result.brightness:.1f}, '
+                f'{result.iterations} steps)'
+            )
+        else:
+            self.get_logger().warn(
+                f'Exposure search did not reach brightness {target:.0f} +/- {tolerance:.0f} '
+                f'in {result.iterations} steps; using closest value {result.exposure} '
+                f'(brightness {result.brightness:.1f})'
+            )
+
+    def exposure_search_range(self, controls):
+        minimum = self.get_parameter('exposure_min').value
+        maximum = self.get_parameter('exposure_max').value
+        if maximum <= 0:
+            # Exposure is in 100 us units: one frame period is 10000 / fps.
+            # Longer exposures lower the frame rate on UVC cameras.
+            fps = self.negotiated_fps if self.negotiated_fps > 0 else self.camera_fps
+            maximum = int(10000 / fps)
+
+        if controls.absolute_min is not None:
+            minimum = max(minimum, controls.absolute_min)
+        if controls.absolute_max is not None:
+            maximum = min(maximum, controls.absolute_max)
+        if minimum > maximum:
+            self.get_logger().warn(f'exposure_min {minimum} > exposure_max {maximum}; using {minimum} only')
+            maximum = minimum
+        return minimum, maximum
+
+    def write_exposure(self, controls, value):
+        ok, output = set_v4l2_control(self.device_path, controls.absolute_name, value)
+        if not ok:
+            raise ExposureControlError(f'Failed to set {controls.absolute_name}={value}: {output}')
+
+    def apply_log_level(self):
+        # Overrides --ros-args --log-level for this node's logger.
+        level = str(self.get_parameter('log_level').value).lower()
+        severity = LOG_LEVELS.get(level)
+        if severity is None:
+            self.get_logger().warn(
+                f'Unknown log_level {level!r} (valid: {", ".join(LOG_LEVELS)}); using info'
+            )
+            severity = LoggingSeverity.INFO
+        self.get_logger().set_level(severity)
+
+    def report_exposure_problem(self, message, fail_fast):
+        if fail_fast:
+            raise RuntimeError(message)
+        self.get_logger().warn(f'{message}; publishing with the current camera exposure')
+
+    # Runtime
+
     def timer_callback(self):
         ret, frame = self.cap.read()
-        
+
         if ret:
             # Convert OpenCV image to ROS Image message
             try:
                 msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
                 msg.header.stamp = self.get_clock().now().to_msg()
                 msg.header.frame_id = 'camera_frame'
-                
+
                 # Publish the message
                 self.publisher_.publish(msg)
-                
-                self.frame_count += 1
-                if self.frame_count % 300 == 0:
-                    self.get_logger().info(f'Published {self.frame_count} frames')
-            
+
+                if self.camera_info_pub is not None:
+                    # Same stamp as the image so subscribers can pair them.
+                    self.camera_info_msg.header.stamp = msg.header.stamp
+                    self.camera_info_pub.publish(self.camera_info_msg)
+
             except Exception as e:
-                self.get_logger().error(f'Error converting/publishing image: {str(e)}')
+                self.get_logger().error(
+                    f'Error converting/publishing image: {str(e)}',
+                    throttle_duration_sec=FRAME_WARN_THROTTLE_SEC,
+                )
         else:
-            self.get_logger().warn('Failed to capture frame from camera')
-    
+            self.get_logger().warn(
+                'Failed to capture frame from camera',
+                throttle_duration_sec=FRAME_WARN_THROTTLE_SEC,
+            )
+
+    def publish_extrinsics(self):
+        self.extrinsics_msg.header.stamp = self.get_clock().now().to_msg()
+        self.extrinsics_pub.publish(self.extrinsics_msg)
+
+    # Resource handling
+
+    def destroy_timers(self):
+        if self.timer is not None:
+            self.destroy_timer(self.timer)
+            self.timer = None
+        if self.extrinsics_timer is not None:
+            self.destroy_timer(self.extrinsics_timer)
+            self.extrinsics_timer = None
+
+    def release_camera(self):
+        if self.cap is not None:
+            if self.cap.isOpened():
+                self.cap.release()
+                self.get_logger().info('Camera released')
+            self.cap = None
+
+    def release_resources(self):
+        self.destroy_timers()
+        if self.publisher_ is not None:
+            self.destroy_lifecycle_publisher(self.publisher_)
+            self.publisher_ = None
+        if self.camera_info_pub is not None:
+            self.destroy_lifecycle_publisher(self.camera_info_pub)
+            self.camera_info_pub = None
+        if self.extrinsics_pub is not None:
+            self.destroy_lifecycle_publisher(self.extrinsics_pub)
+            self.extrinsics_pub = None
+        self.camera_info_msg = None
+        self.extrinsics_msg = None
+        self.release_camera()
+
     def destroy_node(self):
-        # Release the camera when shutting down
-        if self.cap.isOpened():
-            self.cap.release()
-            self.get_logger().info('Camera released')
+        self.release_resources()
         super().destroy_node()
 
     def declare_node_parameters(self):
         # Declare parameters with defaults; override in vehicle_bringup/config/vehicle_params.yaml
-        # (camera_device_path and camera_image_topic come from its shared /** section).
+        # (device/file paths and topics come from its shared /** section).
+        # Exposure values are in V4L2 units of 100 us.
         self.declare_parameters(
             namespace='',
             parameters=[
                 # Declare parameters
+                ('log_level', 'info'),
                 ('camera_device_path', '/dev/video0'),
                 ('publish_rate', 60.0),
                 ('camera_image_topic', '/zed/left_camera/image_raw'),
@@ -148,25 +440,46 @@ class WebcamPublisher(Node):
                 ('exposure_absolute', 5),
                 ('exposure_auto', 1),
                 ('exposure_fail_fast', False),
+                ('auto_tune_exposure', True),
+                ('exposure_target_brightness', 110.0),
+                ('exposure_brightness_tolerance', 15.0),
+                ('exposure_min', 1),
+                ('exposure_max', 0),
+                ('exposure_max_iterations', 10),
+                ('exposure_settle_frames', 8),
+                ('exposure_metering_top_fraction', 0.0),
+                # Calibration
+                ('publish_intrinsics', True),
+                ('publish_extrinsics', True),
+                ('camera_intrinsics_path', 'calibration/camera_intrinsics.json'),
+                ('camera_extrinsics_path', 'calibration/camera_extrinsics.json'),
+                ('camera_info_topic', '/my/camera_info'),
+                ('camera_extrinsics_topic', '/my/camera_extrinsics'),
+                ('optical_frame_id', 'zed_left_camera_optical_frame'),
+                ('extrinsics_parent_frame', 'base_link'),
             ]
         )
 
-        return['camera_device_path', 'publish_rate', 'camera_image_topic', 'frame_width', 'frame_height',
-               'camera_fps', 'pixel_format', 'configure_exposure', 'exposure_absolute',
-               'exposure_auto', 'exposure_fail_fast']
+        return ['log_level', 'camera_device_path', 'publish_rate', 'camera_image_topic', 'frame_width', 'frame_height',
+                'camera_fps', 'pixel_format', 'configure_exposure', 'exposure_absolute',
+                'exposure_auto', 'exposure_fail_fast', 'auto_tune_exposure',
+                'exposure_target_brightness', 'exposure_brightness_tolerance', 'exposure_min',
+                'exposure_max', 'exposure_max_iterations', 'exposure_settle_frames',
+                'exposure_metering_top_fraction', 'publish_intrinsics', 'publish_extrinsics',
+                'camera_intrinsics_path', 'camera_extrinsics_path', 'camera_info_topic',
+                'camera_extrinsics_topic', 'optical_frame_id', 'extrinsics_parent_frame']
 
 
 def main(args=None):
     rclpy.init(args=args)
-    
+    webcam_publisher = WebcamPublisher()
+
     try:
-        webcam_publisher = WebcamPublisher()
         rclpy.spin(webcam_publisher)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
-    except Exception as e:
-        print(f'Error: {e}')
     finally:
+        webcam_publisher.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 

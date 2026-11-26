@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <string>
 #include <functional>
 #include <exception>
+
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -26,11 +29,38 @@ std::string trim(const std::string& str) {
         [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
     return s;
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
-DirNode::DirNode()
-: Node("dir_node")
+DirNode::DirNode(const rclcpp::NodeOptions & options)
+: Node("dir_node", options)
 {
+    apply_log_level(*this);
+
     std::string dir_topic = this->declare_parameter<std::string>("dir_topic", "/dir_data");
 
     publisher_ = this->create_publisher<car_msgs::msg::Dir>(dir_topic, 1);
@@ -50,18 +80,11 @@ void DirNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
         RCLCPP_DEBUG(this->get_logger(), "Parsed Dir: %d", value);
         publisher_->publish(out);
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Dir parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "Dir parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
     }
 }
 
 } // namespace dir_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<dir_pub::DirNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(dir_pub::DirNode)
