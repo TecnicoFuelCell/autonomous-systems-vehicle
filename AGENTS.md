@@ -58,7 +58,7 @@ Embedded firmware (`embedded/`) is flashed to ESP32 boards and does **not** run 
 Inside the onboard container, ROS 2 nodes in this repo:
 
 1. Read UART from CANToPC and fan out raw lines (e.g. `/vehicle_internal/serial/*`).
-2. Decode into typed sensor topics for the data I/O interface / core stack.
+2. Decode into typed sensor topics for the data I/O interface / core stack. Steps 1 and 2 (`uart_reader` plus the `deadman_pub`, `vesc_pub`, `dir_pub`, `imu_pub`, `mag_pub` decoders) are **ROS 2 components** (`rclcpp_components`) loaded into one container process (`serial_container`) with intra-process communication; a crash in one of them stops all of them. New decoders of `uart_reader` lines should follow the same pattern.
 3. Subscribe to motion commands (teleop on `/vehicle_internal/joystick/commands`, autonomy on `/mpc` from the core MPC; joystick input overrides the MPC) and write UART to PCToCAN.
 
 Autonomy logic talks **ROS 2**, not CAN directly.
@@ -70,14 +70,14 @@ Top-level directories (vehicle-owned work; excluding git metadata):
 | Area | Path | Purpose |
 |------|------|---------|
 | Embedded firmware | `embedded/` | ESP32 sketches per CAN node under `embedded/CAN/` (e.g. `PCToCAN`, `CANToPC`, `Direction`, `PedalToVESC`); shared bus layout in `embedded/src/` (see `canIds.h`); other boards under `embedded/USB/` |
-| ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`, including `camera_info_node`; `webcam_node` is a managed lifecycle node that tunes exposure during configure and only publishes once active), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
-| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 topics** for the naming convention); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`core_params.yaml`** in **autonomous-systems-core** `ros2-core/src/core_bringup/config/` |
+| ROS 2 workspace | `ros2-vehicle/` | **Colcon** workspace: UART bridge (`uart_reader`, `uart_writer`), decode publishers (`*_pub`), teleop (`joystick_pub`), camera (`webcam_pub`: `webcam_node` is a managed lifecycle node that tunes exposure and loads the calibration files during configure, and once active publishes each image with a matching `CameraInfo` plus the camera extrinsics), **`vehicle_bringup`** (`launch/vehicle_launch.xml` — on-car graph), **`vehicle_calibration`** (calibrator nodes and `launch/*.launch.xml` for bench workflows) |
+| Runtime parameters | `ros2-vehicle/vehicle_bringup/config/` | **`vehicle_params.yaml`** — vehicle I/O node params (installed with `vehicle_bringup`). Its `/**` section defines every topic name and shared file/device path once (see **ROS 2 parameters** for the naming convention); nodes read them under those exact names, and they must not be repeated elsewhere. Core stack uses **`core_params.yaml`** in **autonomous-systems-core** `ros2-core/src/core_bringup/config/` |
 | Calibration parameters | `ros2-vehicle/vehicle_calibration/config/` | **`calibration_params.yaml`** — calibration-only settings (chessboard, fitting, plots). Calibration launches load it together with `vehicle_params.yaml` |
 | Calibration outputs | `calibration/` | **Gitignored** JSON (and legacy NPZ/YAML) written by calibrators; directory may not exist until the first run on the car. Odom model JSON from **autonomous-systems-core** `calibrate_odom_model` uses the same default folder when run from the vehicle workspace |
 | Core submodule | `core/` | Read-only **autonomous-systems-core** checkout (full stack tree for local builds, with `car_msgs` in its `io/` submodule); do not commit vehicle changes here |
 | CI | `.github/workflows/` | GitHub Actions (colcon build of `ros2-vehicle/` and `core/io/ros2-io/car_msgs` on Jazzy, submodules checked out recursively) |
 
-Package folder names under `ros2-vehicle/` match ROS package names. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
+Package folder names under `ros2-vehicle/` match ROS package names. The component packages (`uart_reader` and its decoders) build a shared library registered with `rclcpp_components_register_node`, which also installs the old standalone executable (e.g. `ros2 run mag_pub mag_node`) for debugging. For who starts with whom on the car, see `vehicle_bringup/launch/vehicle_launch.xml`; for bench calibration, `ros2 launch vehicle_calibration <launch>.launch.xml`.
 
 ## Agent rules
 
@@ -107,14 +107,25 @@ Contributors are **engineering students** on a mixed team: some with a **compute
 
 - **No emojis** in source code, comments, or log messages.
 - Comments should be **concise**, **technical**, and **easy for a student** to follow (see **Audience** above): explain non-obvious intent, hardware quirks, or safety behavior — not restate what the code already says.
+- **Avoid big blocks of comments** (long file headers, multi-paragraph explanations, conventions restated in config files). They go out of date as the code changes and then mislead. Keep comments to a line or two next to the code they explain; put repository conventions in this file and usage instructions in the README.
 - Match existing conventions in the file and package (naming, ROS 2 patterns, Arduino style). Keep diffs minimal unless the task requires broader change.
 
 ### ROS 2 topics (internal vs stack-facing)
 
 - Topics that exist **only inside this repo** (UART fan-out, decode pipelines, teleop wiring, debug between vehicle nodes) must use the **`/vehicle_internal`** prefix so they are not confused with the shared stack contract (e.g. `/vehicle_internal/serial/vesc`, `/vehicle_internal/serial/dir`, `/vehicle_internal/joystick/raw`, `/vehicle_internal/joystick/commands`). Follow existing names under `uart_reader`, `joystick_pub`, and the `*_pub` nodes.
 - Topics intended for **autonomous-systems-io**, core logic, or recording bags should match that contract (e.g. `/vesc_data`, `/dir_data`) — do not publish stack-facing data only on `/vehicle_internal/...` unless you are deliberately adding an internal stage with a separate public publisher.
-- **Topic names are parameters, never hard-coded.** Every node declares each topic it publishes or subscribes as a parameter named **`<data>_topic`**, after the data it carries (e.g. `serial_mag_topic`, `mag_topic`, `camera_image_topic`). Never encode direction in the key (`input_`, `output_`, `in`, `out`): publisher and subscribers must read the **same** key. Keep the current topic as the code default.
-- Each topic key is defined **once**, in the `/**` section of `vehicle_bringup/config/vehicle_params.yaml` (calibration-only topics: `/**` in `vehicle_calibration/config/calibration_params.yaml`), with a `# publisher -> subscribers` comment. Never repeat it in a node section. Shared files and devices follow the same rule as **`<thing>_path`**. Every launch that starts a node must pass it `vehicle_params.yaml`, otherwise it silently falls back to code defaults.
+
+### ROS 2 parameters
+
+Runtime parameters live in `vehicle_bringup/config/vehicle_params.yaml` (calibration-only settings: `vehicle_calibration/config/calibration_params.yaml`).
+
+- **Shared `/**` section:** applied to every node that loads the file. A node only uses the keys it declares, so the publisher and the subscribers of a topic read the same entry and cannot drift apart.
+- **Topic names are parameters, never hard-coded.** Every node declares each topic it publishes or subscribes as a parameter named **`<data>_topic`**, after the data it carries (e.g. `serial_mag_topic`, `mag_topic`, `camera_image_topic`). Never encode direction in the key (`input_`, `output_`, `in`, `out`): direction depends on the node reading it, and publisher and subscribers must read the **same** key. Keep the current topic as the code default.
+- **Files and devices** shared between nodes follow the same rule as **`<thing>_path`** (e.g. `camera_device_path`, `magnetometer_coefficients_path`).
+- **Define once:** each `_topic` and `_path` key is defined exactly once, in the `/**` section, with a short `# publisher -> subscribers` comment. Never repeat it in a node section. Calibration-only topics go in the `/**` section of `calibration_params.yaml`.
+- **Node sections** hold only the parameters specific to that node (rates, thresholds, feature switches).
+- **Log level:** every node must have a way to configure its log level. Nodes in this repo declare a `log_level` parameter (`debug`, `info`, `warn`, `error`, `fatal`) and apply it to their logger at startup; new nodes must do the same. The default lives in `/**`, and a node section may override it (the one exception to the define-once rule). Executables we do not own (e.g. `joy_node`, the component container) get their level from the launch file with `--ros-args --log-level <logger>:=<level>`.
+- Every launch that starts a node must pass it `vehicle_params.yaml`, otherwise it silently falls back to code defaults.
 
 ### Planning before large changes
 
@@ -172,6 +183,6 @@ Guidelines:
 
 - Prefer describing **roles** (embedded firmware, onboard bridge, bringup) over hard-coding paths; when paths change, update the **Repository layout** table and any path examples, then search this file (and `README.md`) for stale directory names.
 - Do **not** paste full package lists or CAN ID tables here — link to README, launch files, or `canIds.h` instead.
-- After structural edits, quickly verify that sections **Repository layout**, **Software path**, **ROS 2 topics**, and **Onboard runtime** still match the tree.
+- After structural edits, quickly verify that sections **Repository layout**, **Software path**, **ROS 2 topics**, **ROS 2 parameters**, and **Onboard runtime** still match the tree.
 
 If you are an agent and you just performed a restructure, include `AGENTS.md` (and `README.md` if diagrams or structure sections are affected) in the same work unless the user explicitly asked to skip documentation.

@@ -7,29 +7,39 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
-add_executable(mag_node
+add_library(mag_component SHARED
   src/mag_node.cpp
 )
 
-target_include_directories(mag_node PUBLIC
+target_include_directories(mag_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(mag_node
+ament_target_dependencies(mag_component
   rclcpp
+  rclcpp_components
   sensor_msgs
   std_msgs
 )
 
-target_link_libraries(mag_node nlohmann_json::nlohmann_json)
+target_link_libraries(mag_component nlohmann_json::nlohmann_json)
 
-install(TARGETS mag_node
-  DESTINATION lib/${PROJECT_NAME}
+# Loadable into a component container; also generates the standalone mag_node executable.
+rclcpp_components_register_node(mag_component
+  PLUGIN "mag_pub::MagNode"
+  EXECUTABLE mag_node
+)
+
+install(TARGETS mag_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

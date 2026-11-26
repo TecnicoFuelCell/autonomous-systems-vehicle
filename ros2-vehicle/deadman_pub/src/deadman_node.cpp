@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
 #include <string>
+
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -17,11 +20,38 @@ std::string trim(const std::string& str) {
         [](unsigned char ch) { return std::isspace(ch); }).base(), s.end());
     return s;
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
-DeadmanNode::DeadmanNode()
-: Node("deadman_node")
+DeadmanNode::DeadmanNode(const rclcpp::NodeOptions & options)
+: Node("deadman_node", options)
 {
+    apply_log_level(*this);
+
     alive_timeout_ = this->declare_parameter<double>("alive_timeout", 0.5);
 
     const std::string deadman_topic =
@@ -93,12 +123,4 @@ void DeadmanNode::process_alive() {
 
 } // namespace deadman_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<deadman_pub::DeadmanNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(deadman_pub::DeadmanNode)

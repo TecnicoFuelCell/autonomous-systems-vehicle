@@ -127,14 +127,14 @@ def apply_exposure_settings(
             applied = False
             continue
         if logger is not None:
-            logger.info(f"Set {control_name}={value} on {device_path}")
+            logger.debug(f"Set {control_name}={value} on {device_path}")
 
     for control_name, _ in commands:
         ok, output = get_v4l2_control(device_path, control_name)
         if logger is None:
             continue
         if ok:
-            logger.info(f"Verified {output}")
+            logger.debug(f"Verified {output}")
         else:
             logger.warn(f"Could not verify {control_name} on {device_path}: {output}")
 

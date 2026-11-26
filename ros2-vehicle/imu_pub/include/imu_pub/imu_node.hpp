@@ -10,7 +10,7 @@ namespace imu_pub {
 class ImuNode : public rclcpp::Node
 {
 public:
-    ImuNode();
+    explicit ImuNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
     void process_acc(const std_msgs::msg::String::ConstSharedPtr msg);

@@ -1,22 +1,32 @@
 <!-- Magnetometer calibration: mag_node publishes raw /mag_data (no correction
      applied) and calibrate_magnetometer fits hard/soft-iron correction on Ctrl+C, writing
-     mag_calib_path (shared section of vehicle_params.yaml). Drive the car slowly
+     magnetometer_coefficients_path (shared section of vehicle_params.yaml). Drive the car slowly
      through full turns on level ground while sampling. -->
 
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <arg name="calibration_params" default="$(find-pkg-share vehicle_calibration)/config/calibration_params.yaml"/>
+    <!-- Log level of the component container itself (library loading messages);
+         the composed nodes use their own log_level parameter. -->
+    <arg name="container_log_level" default="warn"/>
 
-    <!-- CANToPC serial reader: republishes raw lines on /vehicle_internal/serial/*. -->
-    <node pkg="uart_reader" exec="uart_node" name="uart_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
+    <!-- Same composition as vehicle_launch.xml, limited to the nodes this calibration needs. -->
+    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen"
+                    ros_args="--log-level serial_container:=$(var container_log_level)">
+        <!-- The fit must see uncorrected data, so the stored calibration is not applied. -->
+        <composable_node pkg="mag_pub" plugin="mag_pub::MagNode" name="mag_node">
+            <param from="$(var vehicle_params)"/>
+            <param name="apply_mag_calib" value="false"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
 
-    <!-- The fit must see uncorrected data, so the stored calibration is not applied. -->
-    <node pkg="mag_pub" exec="mag_node" name="mag_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-        <param name="apply_mag_calib" value="false"/>
-    </node>
+        <!-- CANToPC serial reader: republishes raw lines on /vehicle_internal/serial/*.
+             Loaded last so mag_node is already subscribed. -->
+        <composable_node pkg="uart_reader" plugin="uart_reader::UartReaderNode" name="uart_reader">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
+    </node_container>
 
     <node pkg="vehicle_calibration" exec="calibrate_magnetometer" name="calibrate_magnetometer" output="screen">
         <param from="$(var vehicle_params)"/>

@@ -6,7 +6,11 @@
 #include <vector>
 #include <functional>
 #include <exception>
+#include <map>
 #include <sstream>
+#include <string>
+
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -38,11 +42,38 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
     }
     return tokens;
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
-VesceNode::VesceNode()
-: Node("vesc_node")
+VesceNode::VesceNode(const rclcpp::NodeOptions & options)
+: Node("vesc_node", options)
 {
+    apply_log_level(*this);
+
     std::string vesc_topic = this->declare_parameter<std::string>("vesc_topic", "/vesc_data");
 
     publisher_ = this->create_publisher<car_msgs::msg::VescData>(vesc_topic, 1);
@@ -55,7 +86,8 @@ VesceNode::VesceNode()
 void VesceNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
     std::vector<std::string> parts = split(msg->data, ',');
     if (parts.size() < 7) {
-        RCLCPP_ERROR(this->get_logger(), "VESC parse error: Not enough parts in payload (%zu/7)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "VESC parse error: Not enough parts in payload (%zu/7)", parts.size());
         return;
     }
 
@@ -75,24 +107,18 @@ void VesceNode::process(const std_msgs::msg::String::ConstSharedPtr msg) {
             std::abs(out.avginputcurrent) < 1e-5 && std::abs(out.dutycyclenow) < 1e-5 &&
             std::abs(out.rpm) < 1e-5 && std::abs(out.inpvoltage) < 1e-5 &&
             std::abs(out.watthours) < 1e-5) {
-            RCLCPP_ERROR(this->get_logger(), "VESC ALERT: All values are exactly zero!");
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "VESC ALERT: All values are exactly zero!");
         }
 
         RCLCPP_DEBUG(this->get_logger(), "Parsed VESC: rpm=%.2f, duty=%.2f, v_in=%.2f", out.rpm, out.dutycyclenow, out.inpvoltage);
         publisher_->publish(out);
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(get_logger(), "VESC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "VESC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
     }
 }
 
 } // namespace vesc_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<vesc_pub::VesceNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(vesc_pub::VesceNode)

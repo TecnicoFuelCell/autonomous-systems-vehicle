@@ -7,24 +7,34 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(std_msgs REQUIRED)
 
-add_executable(deadman_node
+add_library(deadman_component SHARED
   src/deadman_node.cpp
 )
 
-target_include_directories(deadman_node PUBLIC
+target_include_directories(deadman_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(deadman_node
+ament_target_dependencies(deadman_component
   rclcpp
+  rclcpp_components
   std_msgs
 )
 
-install(TARGETS deadman_node
-  DESTINATION lib/${PROJECT_NAME}
+# Loadable into a component container; also generates the standalone deadman_node executable.
+rclcpp_components_register_node(deadman_component
+  PLUGIN "deadman_pub::DeadmanNode"
+  EXECUTABLE deadman_node
+)
+
+install(TARGETS deadman_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/
