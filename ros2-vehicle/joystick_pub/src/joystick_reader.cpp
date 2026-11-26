@@ -30,9 +30,20 @@ class JoystickReader : public rclcpp::Node {
             return static_cast<int>((value - from_min) * (to_max - to_min) / (from_max - from_min) + to_min);
         }
 
+        // Trigger axes report 0.0 until they are moved for the first time.
+        // Treat that initial value as "released" (1.0), otherwise an idle
+        // trigger looks half pressed and produces a command of 24.
+        float trigger_axis(float raw, bool &seen) {
+            if (!seen && raw == 0.0f) {
+                return 1.0f;
+            }
+            seen = true;
+            return raw;
+        }
+
         void joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg) {
-            float r2 = (1.0f - msg->axes[5]) / 2.0f;
-            float l2 = (1.0f - msg->axes[4]) / 2.0f;
+            float r2 = (1.0f - trigger_axis(msg->axes[5], r2_seen_)) / 2.0f;
+            float l2 = (1.0f - trigger_axis(msg->axes[4], l2_seen_)) / 2.0f;
 
             float left_analog = - msg->axes[0]; // Left stick horizontal
             
@@ -60,6 +71,10 @@ class JoystickReader : public rclcpp::Node {
 
         std::string joy_topic_;
         std::string movement_topic_;
+
+        // True once the trigger axis has reported a value other than 0.0.
+        bool l2_seen_ = false;
+        bool r2_seen_ = false;
 
         rclcpp::Publisher<car_msgs::msg::ImSpeed>::SharedPtr publisher_;
         rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscriber_;
