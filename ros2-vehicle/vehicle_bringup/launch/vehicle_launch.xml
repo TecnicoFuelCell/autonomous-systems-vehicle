@@ -1,5 +1,7 @@
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+    <arg name="container_log_level" default="warn"/>
+    
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
         <remap from="joy" to="/vehicle_internal/joystick/raw"/>
         <param from="$(var vehicle_params)"/>
@@ -9,13 +11,12 @@
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- UART writer: Joystick input overrides the MPC. -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen">
-
+    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen"
+                    ros_args="--log-level serial_container:=$(var container_log_level)">
         <composable_node pkg="deadman_pub" plugin="deadman_pub::DeadmanNode" name="deadman_node">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
@@ -41,21 +42,15 @@
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
 
-        <!-- UART reader: Loaded last so the decoders are already subscribed when lines arrive. -->
         <composable_node pkg="uart_reader" plugin="uart_reader::UartReaderNode" name="uart_reader">
             <param from="$(var vehicle_params)"/>
             <extra_arg name="use_intra_process_comms" value="true"/>
         </composable_node>
     </node_container>
 
-    <!-- Managed node: autostart runs configure (exposure tuning) then activate;
-         no images are published until both succeed. -->
     <lifecycle_node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" namespace="" autostart="true" output="screen">
         <param from="$(var vehicle_params)"/>
     </lifecycle_node>
-    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
 
     <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
         <param from="$(var vehicle_params)"/>

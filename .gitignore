@@ -51,7 +51,7 @@ env/
 # Keep the YAML configs under */config/ tracked; outputs live under calibration/.
 calibration/camera_intrinsics.json
 calibration/camera_extrinsics.json
-calibration/mag_calib.json
+calibration/magnetometer_coefficients.json
 calibration/odom_model.json
 calibration/*.npz
 calibration/mag_calib.yaml

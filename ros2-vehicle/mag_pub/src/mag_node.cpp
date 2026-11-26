@@ -1,7 +1,10 @@
 #include "mag_pub/mag_node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 #include <functional>
@@ -47,11 +50,38 @@ void apply_mag_calibration(
         }
     }
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
 MagNode::MagNode(const rclcpp::NodeOptions & options)
 : Node("mag_node", options)
 {
+    apply_log_level(*this);
+
     std::string mag_topic = this->declare_parameter<std::string>("mag_topic", "/mag_data");
     frame_id_ = this->declare_parameter<std::string>("frame_id", "imu_link");
 
@@ -67,7 +97,8 @@ MagNode::MagNode(const rclcpp::NodeOptions & options)
 void MagNode::load_mag_calibration() {
     apply_mag_calib_ = this->declare_parameter<bool>("apply_mag_calib", true);
     const std::string path =
-        this->declare_parameter<std::string>("mag_calib_path", "calibration/mag_calib.json");
+        this->declare_parameter<std::string>(
+            "magnetometer_coefficients_path", "calibration/magnetometer_coefficients.json");
 
     mag_offset_ = {{0.0, 0.0, 0.0}};
     mag_matrix_ = {{ {{1.0, 0.0, 0.0}}, {{0.0, 1.0, 0.0}}, {{0.0, 0.0, 1.0}} }};

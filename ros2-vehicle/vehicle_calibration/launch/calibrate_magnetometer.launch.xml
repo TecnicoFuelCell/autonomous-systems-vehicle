@@ -1,14 +1,18 @@
 <!-- Magnetometer calibration: mag_node publishes raw /mag_data (no correction
      applied) and calibrate_magnetometer fits hard/soft-iron correction on Ctrl+C, writing
-     mag_calib_path (shared section of vehicle_params.yaml). Drive the car slowly
+     magnetometer_coefficients_path (shared section of vehicle_params.yaml). Drive the car slowly
      through full turns on level ground while sampling. -->
 
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
     <arg name="calibration_params" default="$(find-pkg-share vehicle_calibration)/config/calibration_params.yaml"/>
+    <!-- Log level of the component container itself (library loading messages);
+         the composed nodes use their own log_level parameter. -->
+    <arg name="container_log_level" default="warn"/>
 
     <!-- Same composition as vehicle_launch.xml, limited to the nodes this calibration needs. -->
-    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen">
+    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen"
+                    ros_args="--log-level serial_container:=$(var container_log_level)">
         <!-- The fit must see uncorrected data, so the stored calibration is not applied. -->
         <composable_node pkg="mag_pub" plugin="mag_pub::MagNode" name="mag_node">
             <param from="$(var vehicle_params)"/>

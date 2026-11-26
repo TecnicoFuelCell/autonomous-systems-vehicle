@@ -10,8 +10,11 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
+#include <map>
 #include <string>
 
 namespace codec = gps_pub::codec;
@@ -22,14 +25,40 @@ namespace {
 rclcpp::Time safe_now(rclcpp::Node* n) {
     rclcpp::Time t = n->get_clock()->now();
     if (t.nanoseconds() != 0) return t;
-    static rclcpp::Clock wall_clock(RCL_SYSTEM_TIME);
-    return wall_clock.now();
+  static rclcpp::Clock wall_clock(RCL_SYSTEM_TIME);
+  return wall_clock.now();
+}
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node) {
+  std::string level = node.declare_parameter<std::string>("log_level", "info");
+  std::transform(level.begin(), level.end(), level.begin(),
+    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+  static const std::map<std::string, rclcpp::Logger::Level> levels = {
+    {"debug", rclcpp::Logger::Level::Debug},
+    {"info", rclcpp::Logger::Level::Info},
+    {"warn", rclcpp::Logger::Level::Warn},
+    {"error", rclcpp::Logger::Level::Error},
+    {"fatal", rclcpp::Logger::Level::Fatal},
+  };
+  auto it = levels.find(level);
+  if (it == levels.end()) {
+    RCLCPP_WARN(node.get_logger(),
+      "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+    node.get_logger().set_level(rclcpp::Logger::Level::Info);
+    return;
+  }
+  node.get_logger().set_level(it->second);
 }
 }  // namespace
 
 class GPSNode : public rclcpp::Node {
 public:
   GPSNode() : Node("gps_node") {
+    apply_log_level(*this);
+
     // params
     port_     = this->declare_parameter<std::string>("gps_device_path", "/dev/ttyUSB1");
     baudrate_ = this->declare_parameter<int>("baudrate", 115200);
