@@ -1,0 +1,89 @@
+<!-- Sensors bringup: Xsens MTi IMU + u-blox ZED-X20D GNSS/heading receiver.
+
+     The drivers themselves are built into the Docker image under
+     /opt/sensor_ws (see autonomous-systems-docker/Dockerfile), not vendored
+     into this repository. This file only starts them and exposes the few
+     settings that change between bench and car.
+
+     Topics used by the stack:
+       /imu_data                 sensor_msgs/Imu            Xsens
+       /mag_data                 sensor_msgs/MagneticField  Xsens (normalized, not tesla)
+       /gps/fix                  sensor_msgs/NavSatFix      u-blox
+       /ntrip_client/rtcm        rtcm_msgs/Message          NTRIP -> u-blox corrections
+     Every other driver output is moved under /vehicle_internal/unused/.
+
+     The drivers do not read topic names from parameters, so the remaps below
+     repeat the names defined in vehicle_params.yaml (imu_topic, mag_topic,
+     gps_fix_topic). Xsens settings live in vehicle_params.yaml (xsens_mti_node).
+-->
+
+<launch>
+    <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+
+    <!-- ============================ Xsens MTi ============================ -->
+    <!-- Driver defaults first; vehicle_params.yaml is loaded last so it overrides them. -->
+    <node pkg="bluespace_ai_xsens_mti_driver" exec="xsens_mti_node"
+          name="xsens_mti_node" output="screen">
+        <param from="$(find-pkg-share bluespace_ai_xsens_mti_driver)/param/xsens_mti_node.yaml"/>
+        <param from="$(var vehicle_params)"/>
+
+        <remap from="/imu/data" to="/imu_data"/>
+        <remap from="/imu/mag" to="/mag_data"/>
+
+        <!-- Outputs not consumed by the stack (most are disabled in vehicle_params.yaml). -->
+        <remap from="/imu/acceleration" to="/vehicle_internal/unused/xsens/imu/acceleration"/>
+        <remap from="/imu/angular_velocity" to="/vehicle_internal/unused/xsens/imu/angular_velocity"/>
+        <remap from="/imu/dq" to="/vehicle_internal/unused/xsens/imu/dq"/>
+        <remap from="/imu/dv" to="/vehicle_internal/unused/xsens/imu/dv"/>
+        <remap from="/imu/time_ref" to="/vehicle_internal/unused/xsens/imu/time_ref"/>
+        <remap from="/filter/quaternion" to="/vehicle_internal/unused/xsens/filter/quaternion"/>
+        <remap from="/filter/free_acceleration" to="/vehicle_internal/unused/xsens/filter/free_acceleration"/>
+        <remap from="/filter/twist" to="/vehicle_internal/unused/xsens/filter/twist"/>
+        <remap from="/filter/positionlla" to="/vehicle_internal/unused/xsens/filter/positionlla"/>
+        <remap from="/filter/velocity" to="/vehicle_internal/unused/xsens/filter/velocity"/>
+        <remap from="/gnss" to="/vehicle_internal/unused/xsens/gnss"/>
+        <remap from="/temperature" to="/vehicle_internal/unused/xsens/temperature"/>
+        <remap from="/pressure" to="/vehicle_internal/unused/xsens/pressure"/>
+    </node>
+
+    <!-- ========================== u-blox ZED-X20D ======================== -->
+    <!-- All u-blox topics live under ublox_namespace, which is outside the
+         stack contract; only the NavSatFix is remapped back to /gps/fix.
+         daheading_offset is the clockwise angle, in 0.01 deg, from the
+         antenna-1 -> antenna-2 baseline to the vehicle forward axis
+         (9000 = +90 deg). heading_frame_id=base_link makes navsat_transform
+         treat the heading as the vehicle body yaw without an extra TF. -->
+    <arg name="ublox_namespace" default="vehicle_internal/unused/gps"/>
+    <arg name="ublox_frame_id" default="ubx"/>
+    <arg name="daheading_offset" default="0"/>
+    <arg name="min_carr_soln" default="2"/>
+    <arg name="ublox_log_level" default="INFO"/>
+
+    <group>
+        <set_remap from="/$(var ublox_namespace)/fix" to="/gps/fix"/>
+        <include file="$(find-pkg-share ublox_dgnss)/launch/ublox_x20d_rover_heading.launch.py">
+            <arg name="namespace" value="$(var ublox_namespace)"/>
+            <arg name="frame_id" value="$(var ublox_frame_id)"/>
+            <arg name="daheading_offset" value="$(var daheading_offset)"/>
+            <arg name="min_carr_soln" value="$(var min_carr_soln)"/>
+            <arg name="heading_frame_id" value="base_link"/>
+            <arg name="log_level" value="$(var ublox_log_level)"/>
+        </include>
+    </group>
+
+    <!-- ============================= NTRIP =============================== -->
+    <!-- The X20D driver only forwards RTCM arriving on /ntrip_client/rtcm; it
+         does not start a corrections client. NTRIP credentials are read from
+         NTRIP_USERNAME / NTRIP_PASSWORD in the environment, never from git. -->
+    <arg name="ntrip_host" default="rtk2go.com"/>
+    <arg name="ntrip_port" default="2101"/>
+    <arg name="ntrip_mountpoint" default="R4F_RTK_ENV2"/>
+    <arg name="ntrip_use_https" default="false"/>
+
+    <include file="$(find-pkg-share ublox_dgnss)/launch/ntrip_client.launch.py">
+        <arg name="host" value="$(var ntrip_host)"/>
+        <arg name="port" value="$(var ntrip_port)"/>
+        <arg name="mountpoint" value="$(var ntrip_mountpoint)"/>
+        <arg name="use_https" value="$(var ntrip_use_https)"/>
+    </include>
+</launch>
