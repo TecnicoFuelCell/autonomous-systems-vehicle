@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <map>
 #include <string>
 #include <vector>
 #include <functional>
 #include <exception>
 #include <sstream>
+
+#include <rclcpp_components/register_node_macro.hpp>
 
 using namespace std::chrono_literals;
 
@@ -39,11 +42,38 @@ std::vector<std::string> split(const std::string& s, char delimiter) {
     }
     return tokens;
 }
+
+// Sets this node's logger level from its log_level parameter (debug, info,
+// warn, error, fatal). Overrides --ros-args --log-level for this node.
+void apply_log_level(rclcpp::Node & node)
+{
+    std::string level = node.declare_parameter<std::string>("log_level", "info");
+    std::transform(level.begin(), level.end(), level.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+
+    static const std::map<std::string, rclcpp::Logger::Level> levels = {
+        {"debug", rclcpp::Logger::Level::Debug},
+        {"info", rclcpp::Logger::Level::Info},
+        {"warn", rclcpp::Logger::Level::Warn},
+        {"error", rclcpp::Logger::Level::Error},
+        {"fatal", rclcpp::Logger::Level::Fatal},
+    };
+    auto it = levels.find(level);
+    if (it == levels.end()) {
+        RCLCPP_WARN(node.get_logger(),
+            "Unknown log_level '%s' (valid: debug, info, warn, error, fatal); using info", level.c_str());
+        node.get_logger().set_level(rclcpp::Logger::Level::Info);
+        return;
+    }
+    node.get_logger().set_level(it->second);
+}
 } // namespace
 
-ImuNode::ImuNode()
-: Node("imu_node")
+ImuNode::ImuNode(const rclcpp::NodeOptions & options)
+: Node("imu_node", options)
 {
+    apply_log_level(*this);
+
     std::string imu_topic = this->declare_parameter<std::string>("imu_topic", "/imu_data");
     std::string frame_id = this->declare_parameter<std::string>("frame_id", "imu_link");
 
@@ -71,7 +101,8 @@ void ImuNode::process_acc(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(current_imu_msg_.linear_acceleration.x) < 1e-5 &&
                 std::abs(current_imu_msg_.linear_acceleration.y) < 1e-5 &&
                 std::abs(current_imu_msg_.linear_acceleration.z) < 1e-5) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Accelerometer values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Accelerometer values are exactly zero! Check IMU connection.");
             }
 
             current_imu_msg_.orientation.x = 0.0;
@@ -89,10 +120,12 @@ void ImuNode::process_acc(const std_msgs::msg::String::ConstSharedPtr msg) {
                          current_imu_msg_.linear_acceleration.y,
                          current_imu_msg_.linear_acceleration.z);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "ACC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "ACC parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "ACC parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "ACC parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
@@ -109,7 +142,8 @@ void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
             if (std::abs(current_imu_msg_.angular_velocity.x) < 1e-5 &&
                 std::abs(current_imu_msg_.angular_velocity.y) < 1e-5 &&
                 std::abs(current_imu_msg_.angular_velocity.z) < 1e-5) {
-                RCLCPP_ERROR(this->get_logger(), "IMU ALERT: All Gyroscope values are exactly zero! Check IMU connection.");
+                RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                    "IMU ALERT: All Gyroscope values are exactly zero! Check IMU connection.");
             }
 
             current_imu_msg_.orientation.x = 0.0;
@@ -131,21 +165,15 @@ void ImuNode::process_gyro(const std_msgs::msg::String::ConstSharedPtr msg) {
 
             publisher_->publish(current_imu_msg_);
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "GYRO parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
+            RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "GYRO parse exception: %s. Payload: %s", e.what(), msg->data.c_str());
         }
     } else {
-        RCLCPP_ERROR(this->get_logger(), "GYRO parse error: Insufficient data pieces (%zu)", parts.size());
+        RCLCPP_ERROR_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+            "GYRO parse error: Insufficient data pieces (%zu)", parts.size());
     }
 }
 
 } // namespace imu_pub
 
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<imu_pub::ImuNode>();
-    if (rclcpp::ok()) {
-        rclcpp::spin(node);
-    }
-    rclcpp::shutdown();
-    return 0;
-}
+RCLCPP_COMPONENTS_REGISTER_NODE(imu_pub::ImuNode)

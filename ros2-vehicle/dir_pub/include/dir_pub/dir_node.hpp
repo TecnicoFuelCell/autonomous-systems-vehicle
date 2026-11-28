@@ -10,7 +10,7 @@ namespace dir_pub {
 class DirNode : public rclcpp::Node
 {
 public:
-    DirNode();
+    explicit DirNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
     void process(const std_msgs::msg::String::ConstSharedPtr msg);

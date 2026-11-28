@@ -1,14 +1,10 @@
-# Shared values: applied to every node that loads this file. A node only uses
-# the keys it declares, so the publisher and the subscribers of a topic read
-# the same entry and cannot drift apart. Naming convention:
-#   <data>_topic  every ROS topic, named after the data it carries (never
-#                 input/output: direction depends on the node reading it)
-#   <thing>_path  files and devices shared between nodes
-# Every topic is defined here exactly once. Do NOT repeat these keys in a node
-# section below. Comments show publisher -> subscribers.
+# Naming and define-once rules: AGENTS.md, section "ROS 2 parameters".
 /**:
   ros__parameters:
-    # Raw CANToPC UART lines: uart_node -> decoder nodes (internal)
+    # Logger level of every vehicle node: debug, info, warn, error, fatal.
+    log_level: "warn"
+
+    # Raw CANToPC UART lines: uart_reader -> decoder nodes (internal)
     serial_vesc_topic: "/vehicle_internal/serial/vesc"        # -> vesc_node
     serial_dir_topic: "/vehicle_internal/serial/dir"          # -> dir_node
     serial_acc_topic: "/vehicle_internal/serial/acc"          # -> imu_node
@@ -23,23 +19,27 @@
     mag_topic: "/mag_data"           # mag_node
     gps_fix_topic: "/gps/fix"        # gps_node
     gps_pose_topic: "/gps_pose"      # gps_node
-    deadman_topic: "/deadman/alive"  # deadman_node (also subscribes, as external re-arm)
+    deadman_topic: "/deadman/alive"  # deadman_node
 
     # Camera
     camera_image_topic: "/zed/left_camera/image_raw"  # webcam_publisher
-    camera_info_topic: "/my/camera_info"              # camera_info_node
-    camera_extrinsics_topic: "/my/camera_extrinsics"  # camera_info_node
+    camera_info_topic: "/my/camera_info"              # webcam_publisher
+    camera_extrinsics_topic: "/my/camera_extrinsics"  # webcam_publisher
 
     # Teleop
     joy_topic: "/vehicle_internal/joystick/raw"                    # joy_node -> joystick_reader
     joystick_movement_topic: "/vehicle_internal/joystick/commands" # joystick_reader -> uart_writer
 
+    # Autonomy
+    mpc_movement_topic: "/mpc"  # MPC_Node (autonomous-systems-core) -> uart_writer
+
     # Shared files and devices
-    camera_device_path: "/dev/video0"
+    camera_device_path: "/dev/v4l/by-id/usb-Elgato_Elgato_Facecam_MK.2_A6HTB52822IIIY-video-index0"
+
     gps_device_path: "/dev/ttyUSB1"
-    camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> camera_info_node, calibrate_extrinsics
-    camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> camera_info_node
-    mag_calib_path: "calibration/mag_calib.json"                  # calibrate_magnetometer -> mag_node
+    camera_intrinsics_path: "calibration/camera_intrinsics.json"  # calibrate_intrinsics -> webcam_publisher, calibrate_extrinsics
+    camera_extrinsics_path: "calibration/camera_extrinsics.json"  # calibrate_extrinsics -> webcam_publisher
+    magnetometer_coefficients_path: "calibration/magnetometer_coefficients.json"  # calibrate_magnetometer -> mag_node
 
 # Sensor nodes parameters
 webcam_publisher:
@@ -49,14 +49,22 @@ webcam_publisher:
     frame_height: 720
     camera_fps: 30.0
     pixel_format: "MJPG"
+    # Exposure values are in V4L2 units of 100 us (e.g. 3 = 0.3 ms).
     configure_exposure: true
-    exposure_absolute: 3
-    exposure_auto: 1
-    exposure_fail_fast: false
-
-camera_info_node:
-  ros__parameters:
-    publish_intrinsics: true
+    exposure_absolute: 3      # fixed value, or starting point of the auto-tune search
+    exposure_auto: 1          # 1 = manual exposure mode (UVC menu value)
+    exposure_fail_fast: false # true: fail configure if exposure controls cannot be written
+    # Auto-tune runs during the lifecycle configure step, before any frame is published.
+    auto_tune_exposure: true
+    exposure_target_brightness: 110.0    # mean gray level, 0-255
+    exposure_brightness_tolerance: 15.0
+    exposure_min: 1
+    exposure_max: 0                      # 0 = one frame period (10000 / camera_fps); lower it to reduce motion blur
+    exposure_max_iterations: 10
+    exposure_settle_frames: 8            # frames dropped after each exposure change
+    exposure_metering_top_fraction: 0.0  # ignore this top fraction of the image (e.g. sky) when metering
+    # Calibration topics; a missing calibration file only disables its topic.
+    publish_intrinsics: true  # CameraInfo with each frame, same stamp as the image
     publish_extrinsics: true
 
 joy_node:
@@ -82,10 +90,14 @@ gps_node:
     synthetic_mode: false
 
 # Utility nodes parameters
-uart_node:
+uart_reader:
   ros__parameters:
-    serial_port: "/dev/ttyACM0" # CANToPC (sensor UART read)
+    serial_port: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_54:32:04:86:E7:30-if00" # CANToPC (sensor UART read)
+
 
 uart_writer:
   ros__parameters:
-    serial_port: "/dev/ttyACM1" # PCToCAN (command UART write)
+    serial_port: "/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_80:F1:B2:65:8F:A0-if00" # PCToCAN (command UART write)
+    mpc_max_rpm: 338            # MPC RPM mapped to full joystick throttle (R2: 50); 338 is about 1 m/s
+    mpc_timeout: 0.5            # seconds without /mpc before idle joystick commands are written again
+    joystick_override_hold: 1.0 # seconds the joystick keeps control after its last input

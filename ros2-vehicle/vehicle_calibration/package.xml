@@ -15,6 +15,7 @@
   <!-- Calibration launches load vehicle_bringup/config/vehicle_params.yaml and start these nodes. -->
   <exec_depend>vehicle_bringup</exec_depend>
   <exec_depend>webcam_pub</exec_depend>
+  <exec_depend>rclcpp_components</exec_depend>
   <exec_depend>uart_reader</exec_depend>
   <exec_depend>mag_pub</exec_depend>
 

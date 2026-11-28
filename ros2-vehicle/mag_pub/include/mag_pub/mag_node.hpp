@@ -13,7 +13,7 @@ namespace mag_pub {
 class MagNode : public rclcpp::Node
 {
 public:
-    MagNode();
+    explicit MagNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
 private:
     void load_mag_calibration();

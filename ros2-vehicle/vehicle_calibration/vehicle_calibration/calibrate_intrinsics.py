@@ -16,6 +16,7 @@ import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from rclpy.executors import ExternalShutdownException
+from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.serialization import deserialize_message
@@ -197,9 +198,29 @@ class ChessboardSampleCollector:
         )
 
 
+_LOG_LEVELS = {
+    'debug': LoggingSeverity.DEBUG,
+    'info': LoggingSeverity.INFO,
+    'warn': LoggingSeverity.WARN,
+    'error': LoggingSeverity.ERROR,
+    'fatal': LoggingSeverity.FATAL,
+}
+
+
+def _apply_log_level(node):
+    """Set the node's logger level from its log_level parameter (overrides --log-level)."""
+    level = str(node.declare_parameter('log_level', 'info').value).lower()
+    severity = _LOG_LEVELS.get(level)
+    if severity is None:
+        node.get_logger().warn(f'Unknown log_level {level!r} (valid: {", ".join(_LOG_LEVELS)}); using info')
+        severity = LoggingSeverity.INFO
+    node.get_logger().set_level(severity)
+
+
 class TopicCalibrator(Node):
     def __init__(self):
         super().__init__('topic_calibrator')
+        _apply_log_level(self)
 
         self.declare_parameter('camera_image_topic', '/zed/left_camera/image_raw')
         self.declare_parameter('intrinsics_image_topic', '/vehicle_internal/calibration/intrinsics/image')

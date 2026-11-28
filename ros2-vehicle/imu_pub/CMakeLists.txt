@@ -7,28 +7,38 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
-add_executable(imu_node
+add_library(imu_component SHARED
   src/imu_node.cpp
 )
 
-target_include_directories(imu_node PUBLIC
+target_include_directories(imu_component PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
-ament_target_dependencies(imu_node
+ament_target_dependencies(imu_component
   rclcpp
+  rclcpp_components
   sensor_msgs
   std_msgs
   geometry_msgs
 )
 
-install(TARGETS imu_node
-  DESTINATION lib/${PROJECT_NAME}
+# Loadable into a component container; also generates the standalone imu_node executable.
+rclcpp_components_register_node(imu_component
+  PLUGIN "imu_pub::ImuNode"
+  EXECUTABLE imu_node
+)
+
+install(TARGETS imu_component
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/

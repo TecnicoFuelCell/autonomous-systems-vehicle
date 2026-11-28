@@ -1,7 +1,10 @@
-<!-- launch car with joystick-->
-
 <launch>
     <arg name="vehicle_params" default="$(find-pkg-share vehicle_bringup)/config/vehicle_params.yaml"/>
+    <arg name="container_log_level" default="warn"/>
+    
+    <!-- The u-blox ZED-X20D started by sensors_launch.xml publishes /gps/fix
+         too, so the legacy NMEA receiver must stay off while it is active. -->
+    <arg name="launch_legacy_gps" default="false"/>
     <node pkg="joy" exec="joy_node" name="joy_node" output="screen">
         <remap from="joy" to="/vehicle_internal/joystick/raw"/>
         <param from="$(var vehicle_params)"/>
@@ -10,49 +13,50 @@
     <node pkg="joystick_pub" exec="joystick_node" name="joystick_reader" output="screen" > 
         <param from="$(var vehicle_params)"/>
     </node>
-    
-    <!-- UART reader: owns the CANToPC serial device (read-only upstream) and
-         republishes each raw sensor line on /serial/* for the decode nodes below. -->
-    <node pkg="uart_reader" exec="uart_node" name="uart_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
 
-    <!-- UART writer: subscribes to /vehicle_internal/joystick/commands (ImSpeed)
-         and writes motor/steering commands to the PCSender serial device (which
-         translates them into CAN frames for the motors). -->
     <node pkg="uart_writer" exec="uart_writer_node" name="uart_writer" output="screen">
         <param from="$(var vehicle_params)"/>
     </node>
 
-    <!-- Deadman watchdog: consumes /serial/deadman ALIVE lines from the reader
-         and publishes /deadman/alive (disarms when ALIVE goes stale). -->
-    <node pkg="deadman_pub" exec="deadman_node" name="deadman_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
+    <node_container pkg="rclcpp_components" exec="component_container" name="serial_container" namespace="" output="screen"
+                    ros_args="--log-level serial_container:=$(var container_log_level)">
+        <composable_node pkg="deadman_pub" plugin="deadman_pub::DeadmanNode" name="deadman_node">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
 
-    <!-- Sensor decode nodes: subscribe to raw /serial/* lines from uart_reader
-         and publish the typed topics (names unchanged for downstream consumers). -->
-    <node pkg="vesc_pub" exec="vesc_node" name="vesc_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
-    <node pkg="dir_pub"  exec="dir_node"  name="dir_node"  output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
-    <node pkg="imu_pub"  exec="imu_node"  name="imu_node"  output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
-    <node pkg="mag_pub"  exec="mag_node"  name="mag_node"  output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
+        <composable_node pkg="vesc_pub" plugin="vesc_pub::VesceNode" name="vesc_node">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
 
-    <node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
-    <node pkg="webcam_pub" exec="camera_info_node" name="camera_info_node" output="screen">
-        <param from="$(var vehicle_params)"/>
-    </node>
+        <composable_node pkg="dir_pub" plugin="dir_pub::DirNode" name="dir_node">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
 
-    <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen">
+        <composable_node pkg="imu_pub" plugin="imu_pub::ImuNode" name="imu_node">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
+
+        <composable_node pkg="mag_pub" plugin="mag_pub::MagNode" name="mag_node">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
+
+        <composable_node pkg="uart_reader" plugin="uart_reader::UartReaderNode" name="uart_reader">
+            <param from="$(var vehicle_params)"/>
+            <extra_arg name="use_intra_process_comms" value="true"/>
+        </composable_node>
+    </node_container>
+
+    <lifecycle_node pkg="webcam_pub" exec="webcam_node" name="webcam_publisher" namespace="" autostart="true" output="screen">
+        <param from="$(var vehicle_params)"/>
+    </lifecycle_node>
+
+    <node pkg="gps_pub" exec="gps_node" name="gps_node" output="screen"
+          if="$(var launch_legacy_gps)">
         <param from="$(var vehicle_params)"/>
     </node>
 
