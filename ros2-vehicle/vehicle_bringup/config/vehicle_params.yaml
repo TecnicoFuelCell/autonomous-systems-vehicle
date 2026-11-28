@@ -15,9 +15,9 @@
     # Decoded sensor data (interface)
     vesc_topic: "/vesc_data"         # vesc_node
     dir_topic: "/dir_data"           # dir_node
-    imu_topic: "/imu_data"           # imu_node
-    mag_topic: "/mag_data"           # mag_node
-    gps_fix_topic: "/gps/fix"        # gps_node
+    imu_topic: "/imu_data"           # imu_node or xsens_mti_node (remap in sensors_launch.xml)
+    mag_topic: "/mag_data"           # mag_node or xsens_mti_node (remap in sensors_launch.xml)
+    gps_fix_topic: "/gps/fix"        # gps_node or u-blox (remap in sensors_launch.xml)
     gps_pose_topic: "/gps_pose"      # gps_node
     deadman_topic: "/deadman/alive"  # deadman_node
 
@@ -88,6 +88,36 @@ gps_node:
     origin_longitude: -9.300988216666667
     origin_altitude: 0.0
     synthetic_mode: false
+
+# Overrides bluespace_ai_xsens_mti_driver/param/xsens_mti_node.yaml (loaded first by sensors_launch.xml)
+xsens_mti_node:
+  ros__parameters:
+    scan_for_devices: false  # driver default true ignores port and baudrate
+    port: "/dev/ttyUSB0"
+    baudrate: 115200
+    frame_id: "imu_link"
+    # world -> imu_link would conflict with the static base_link -> imu_link of the fusion launch
+    pub_transform: false
+    # Only the combined IMU message (-> /imu_data) and the magnetometer (-> /mag_data) are consumed.
+    pub_imu: true
+    pub_mag: true  # normalized field vector (unitless), not tesla like mag_node
+    pub_quaternion: false
+    pub_acceleration: false
+    pub_angular_velocity: false
+    pub_dq: false
+    pub_dv: false
+    pub_sampletime: false
+    pub_temperature: false
+    pub_pressure: false
+    pub_gnss: false
+    pub_twist: false
+    pub_free_acceleration: false
+    pub_positionLLA: false
+    pub_velocity: false
+    # 1-sigma noise; the driver ships zeros, which tells robot_localization the sensor is perfect.
+    orientation_stddev: [0.01, 0.01, 0.02]
+    angular_velocity_stddev: [0.005, 0.005, 0.01]
+    linear_acceleration_stddev: [0.05, 0.05, 0.05]
 
 # Utility nodes parameters
 uart_reader:
